@@ -40,6 +40,7 @@ library(here)
 
 Using galah_call to get ALA occurrence data for **Eucalyptus decipens**:
 ```{r}
+galah_config(email = "iamjackdavies@gmail.com")
 galah_call() %>% 
   identify("Eucalyptus decipiens") %>% 
   atlas_counts()
@@ -116,6 +117,35 @@ ggplot() +
   geom_sf(data = IUCN_map, 
           fill = "#009E73", color = "#007F5F")
 ```
+
+Look for and remove NA coordinates:
+```{r}
+sum(is.na(decipiens$decimalLatitude))
+sum(is.na(decipiens$decimalLongitude))
+sum(is.na(decipiens$decimalLatitude) & is.na(decipiens$decimalLongitude))
+```
+146 of the 697:
+```{r}
+146/697
+```
+So about 21% of the occurrence data have no latitude/longitude coordinates and can't be used for subsequent analysis.
+```{r}
+697 - 146
+```
+This leaves 551 records, however the handout sheet said 453, strange.
+Removing NA coordinate observations:
+
+```{r}
+decipiens_clean <- decipiens %>% 
+  filter(!is.na(decimalLatitude),
+                !is.na(decimalLongitude)
+  )
+```
+
+'decipiens_clean' has 551 observations, so the code above worked.
+
+Perhaps there have been more observations added to the dataset since the paper handout was made (551 vs 453 records on my sheet)?
+
 
 Once I've made my decisions on how to clean the data and remade this plot, 
 I can:
