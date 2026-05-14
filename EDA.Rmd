@@ -14,3 +14,112 @@ output:
         fig_height: 4
 ---
 
+## Location on Github
+
+https://github.com/anu-jackdavies/DS4B-final-project
+
+
+#### My Eucalypt Species - Eucalyptus decipiens
+
+# Download ALA data and IUCN map
+
+```{r}
+library(galah)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(readr)
+library(readxl)
+library(janitor)
+library(purrr)
+library(sf)  
+library(ozmaps)
+library(here) 
+```
+
+Using galah_call to get ALA occurrence data for **Eucalyptus decipens**:
+```{r}
+galah_call() %>% 
+  identify("Eucalyptus decipiens") %>% 
+  atlas_counts()
+```
+
+```{r}
+galah_config(email = "iamjackdavies@gmail.com")
+decipiens <- galah_call() %>% 
+  identify("Eucalyptus decipiens") %>% 
+  atlas_occurrences()
+```
+Importing IUCN expert range map data for E. decipiens:
+```{r}
+IUCN_map <- st_read("raw_data/Eucalyptus_decipiens.gpkg")
+```
+Now 'IUCN_map' can be used to add the spatial polygon 
+
+# Clean occurrence data
+
+This will be a key part of the project which needs much consideration.
+
+Firstly, I'll plot all of the occurrence data onto a map, then overlay the expert range.
+This will be a good way to visualise what the spatial distribution of E. decipiens looks like.
+
+## Plot ALA occurrence data
+
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3')
+```
+Could potentially flip the point with latitude around +33 since if it were -33 it would align with many other points - look into this.
+
+
+### Overlapping observations
+
+Trying to visualise overlapping observations like in Week 9 workshop:
+```{r}
+library(ggpointdensity)
+library(viridis)
+```
+
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+
+## Overlay IUCN expert range on occurrence map
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3') +
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F")
+```
+
+Once I've made my decisions on how to clean the data and remade this plot, 
+I can:
+
+# Assess whether expert range map should be changed
+
+# Build SDM for E. decipiens suitable climate space
