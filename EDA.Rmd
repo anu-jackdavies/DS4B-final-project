@@ -101,6 +101,8 @@ ggplot() +
   scale_color_viridis_c(direction = -1) +
   guides(colour = guide_colorbar(title = "Number of overlapping observations"))
 ```
+Two key clusters are present in and around Perth (largest group, likely biased to some extent due to population), and in the southeast corner of the expert range which is overlaid in the next plot.
+
 
 ## Overlay IUCN expert range on occurrence map
 ```{r}
@@ -118,7 +120,8 @@ ggplot() +
           fill = "#009E73", color = "#007F5F")
 ```
 
-Look for and remove NA coordinates:
+### Remove NA coordinates
+
 ```{r}
 sum(is.na(decipiens$decimalLatitude))
 sum(is.na(decipiens$decimalLongitude))
@@ -146,6 +149,59 @@ decipiens_clean <- decipiens %>%
 
 Perhaps there have been more observations added to the dataset since the paper handout was made (551 vs 453 records on my sheet)?
 
+### Investigate obvious spatial outliers.
+
+Firstly, I want to look at the point with the northern latitude since it seems like it could be a valid observation, just with error caused by entering latitude with + instead of -.
+
+```{r}
+#View(decipiens_clean)
+```
+
+When I ran this and sorted by latitude I found the observation had latitude 31.92, while many other observations had -35, -34, -33, -32, -31, -30 etc, so my theory seems to hold up.
+I found it was from the Royal Botanic Gardens, Kew - Herbarium Specimens. That's crazy, since that's a location in Southwest London! I noted it was a preserved specimen rather than a human observation, so perhaps it was brought to London from Australia, and its Australian location was shoddily recorded with incorrect latitude?
+
+On ALA, I found that there are many preserved specimen records whose data resource is the Royal Botanic Gardens, Kew.
+
+I want to check these out in more detail to see if their coordinate data is reputable, to determine if they should be kept and if I should flip that one point.
+
+```{r}
+kew_decipiens <- decipiens_clean %>% 
+  filter(dataResourceName == 'Royal Botanic Gardens, Kew - Herbarium Specimens')
+```
+
+There are only 4 entries here but around 20 on ALA, meaning most of the occurrences from Kew had no coordinate information. Check out coordinates of the four entries:
+
+```{r}
+kew_decipiens$decimalLatitude
+kew_decipiens$decimalLongitude
+```
+These seem to line up well with the other observations on the map and fall in and around expert range. Following my investigation, it seems reasonable to accept the location data for these records and correct the north latitude point to be -31.92 instead.
+
+Flipping coordinate:
+```{r}
+decipiens_clean <- decipiens_clean %>% 
+  mutate(decimalLatitude = if_else(decimalLatitude > 0, -decimalLatitude, decimalLatitude))
+```
+
+Note in this case that was the only north latitude point so I don't need to worry about the code incorrectly flipping other points' coordinates.
+
+Remake the map to check:
+
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3') +
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F")
+```
+Success!
 
 Once I've made my decisions on how to clean the data and remade this plot, 
 I can:
@@ -153,3 +209,5 @@ I can:
 # Assess whether expert range map should be changed
 
 # Build SDM for E. decipiens suitable climate space
+
+* look at soil and landscape grid of Australia, in addition to CHELSA and WorldClim etc.
