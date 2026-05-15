@@ -203,6 +203,73 @@ ggplot() +
 ```
 Success!
 
+Next up I want to investigate the observations on Australia's East coast which seem very out of place.
+
+Looking at observations with high longitude, they are all super old (1960-1971) records from AD AVH Data and Canberra. They are also preserved specimens. 
+
+### Removing Preserved Specimens
+
+After chatting with Rob, I've confirmed that preserved specimens should be removed since they're not a true indication of where E. decipiens naturally occur.
+
+This makes it easier, as many of the problematic-looking points seem to be preserved specimens.
+```{r}
+nrow(decipiens_clean)
+```
+
+```{r}
+decipiens_clean <- decipiens_clean %>% 
+  filter(!basisOfRecord == 'PRESERVED_SPECIMEN')
+```
+
+```{r}
+nrow(decipiens_clean)
+```
+Wow! That removed a whopping
+```{r}
+551-185
+```
+observations! Now viewing the map again:
+
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3') +
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.4)
+```
+
+Now the IUCN expert range is starting to look a lot more apt than it did before!
+Let's zoom in to the relevant area a bit more.
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3') +
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.4) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE)
+```
+
+Note that in the top tip of the IUCN expert range, there was a larger cluster of points around the 2 observations that remain there in my cleaned dataset. Was there some reason for the IUCN to include more of them? Well, looking at the full dataset prior to cleaning, almost all points in that area (around 30S, 116E) were preserved specimens, except the exact 2 that I have left. For this reason I'll stand by my removal decision.
+
+I'm now going to remake the ggpointdensity plot to see how well overlapping observations have been dealt with after some cleaning:
+
+
 Once I've made my decisions on how to clean the data and remade this plot, 
 I can:
 
@@ -211,3 +278,4 @@ I can:
 # Build SDM for E. decipiens suitable climate space
 
 * look at soil and landscape grid of Australia, in addition to CHELSA and WorldClim etc.
+* Add soil atlas into the model
