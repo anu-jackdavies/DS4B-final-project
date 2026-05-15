@@ -263,12 +263,41 @@ ggplot() +
   coord_sf(xlim = c(114, 120),
            ylim = c(-36, -29),
            expand = FALSE)
+# Zoom code made with help of ChatGPT:
+# https://chatgpt.com/share/6a066eec-e304-83ec-b523-cf49140ca891
 ```
 
 Note that in the top tip of the IUCN expert range, there was a larger cluster of points around the 2 observations that remain there in my cleaned dataset. Was there some reason for the IUCN to include more of them? Well, looking at the full dataset prior to cleaning, almost all points in that area (around 30S, 116E) were preserved specimens, except the exact 2 that I have left. For this reason I'll stand by my removal decision.
 
 I'm now going to remake the ggpointdensity plot to see how well overlapping observations have been dealt with after some cleaning:
 
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) + 
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.2) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+
+Looking on Google Maps, the large cluster is indeed around Perth, especially north of Perth where there is more forest and less urban sprawl. For example the Gangara-Moore River State forest has coords around -31.5, 116 which lines up with high clustering of E. decipiens occurrence records. 
+
+https://www.google.com/maps/@-31.5593691,115.8296231,25841m/data=!3m1!1e3?entry=ttu&g_ep=EgoyMDI2MDUxMi4wIKXMDSoASAFQAw%3D%3D
+
+
+I also noticed the other, less prominent cluster has many points in and around Stirling National Park.
+
+https://www.google.com/maps/@-34.3899856,117.3228533,196844m/data=!3m1!1e3?entry=ttu&g_ep=EgoyMDI2MDUxMi4wIKXMDSoASAFQAw%3D%3D
+
+It is my suspicion that there are far more E. decipiens out there in the other forest areas that are less visited by humans, and these clusters are primarily the result of bias towards more populated/visited areas, parks and roads.
 
 Once I've made my decisions on how to clean the data and remade this plot, 
 I can:
