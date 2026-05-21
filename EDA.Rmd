@@ -341,7 +341,18 @@ https://biocache.ala.org.au/occurrences/d63a3a75-e955-412e-83b6-302a712695aa
 https://researchdata.edu.au/salinity-action-plan-flora-survey/3877978
 
 
-Northernmost point (it is within IUCN expert range):
+Issue with Eastern points! French et. al (2012) stated that E. decipiens intergrades with another species E. obesa and then that intergrades with E. adesmophloia at the northern slopes of the Stirling range and the eastern-adjacent plain respectively. This is shown with a map that makes it likely that the older (1986 and 1999) observations are likely from one of these other related species and were mislabelled as E. decipiens prior to the knowledge by French et. al (2012).
+https://florabase.dbca.wa.gov.au/science/nuytsia/653.pdf (see page 37)
+
+I have retroactively decided to remove these observations due to this discovery of potential species misidentification.
+
+```{r}
+decipiens_clean <- decipiens_clean %>% 
+  filter(decimalLongitude < 119)
+```
+
+
+Northernmost point:
 Collected then recorded on iNaturalist by Dean Nicolle in 2010, a leading expert in eucalyptus botany. It has plenty of information on ALA including that it is wild, not cultivated. For these reasons the data point is reputable and it will be included. The fact it was by Nicolle may have influenced the IUCN experts to make their range wrap around this point too.
 https://biocache.ala.org.au/occurrences/fc615d1b-3c6f-48fb-9a9c-0440304758c1
 https://www.anbg.gov.au/biography/nicolle-dean.html
@@ -351,21 +362,79 @@ Identified by Dean Nicolle again in 2024 using iNaturalist, collector/user is Ma
 https://biocache.ala.org.au/occurrences/a47f74ac-9bdc-4987-b933-b6b8a6bef9a3
 
 
-So, I am now happy with my data and ready to progress.
+### Final check with coordinate cleaner:
+
+This is a useful tool from Dax's book to identify any further points for removal.
+```{r}
+library(CoordinateCleaner)
+
+# Run record-level tests
+coordinate_tests <- clean_coordinates(x = decipiens_clean, 
+                                      species = "scientificName")
+summary(coordinate_tests)
+```
+
+None of the data which has survived my cleaning was flagged as suspicious by coordinate cleaner, which is a good sign that this data has been well cleaned and is ready for modelling. 
+
 
 # Assess whether expert range map should be changed
 
 Considering the data cleaning I have performed, I do believe the IUCN expert range map should be slightly modified.
 
-However, the extent to which it should be changed is dependent on interpretation, the two main ones I am considering being:
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) + 
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.2) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
 
-a) Adjust the range to include all of the clean data points e.g. extend quite far eastwards to cover the two far-east points?
 
-b) Make only slight shifts to the expert range map to better reflect the clean data I've chosen to use, but not having to cover every single occurrence point e.g. cutting certain parts inwards to remove blank space without observations in my data, and shift range by about 1 degree eastwards to cover the many observations around Stirling National Park.
+However, the extent to which it should be changed is dependent on interpretation, the approaches I am considering is:
 
-I think that I would favour making minor changes to the existing range akin to interpretation b), but the process of building an SDM will help validate/change my approach.
+a) Adjust the range to include all of the clean data points i.e. more east to cover Stirling Range, cover second northern point.
+
+b) Make only slight shifts to the expert range map to better reflect the clean data I've chosen to use, but not having to cover every single occurrence point e.g. cutting certain parts inwards to remove blank space without observations in my data and not forcing range to go as far east or cover either of the northernmost points if the model decides against it.
+
+The process of building an SDM will help validate/change these approach ideas.
 
 # Build SDM for E. decipiens suitable climate space
+
+## Background Points
+
+Before loading variables and model selection, it is important to choose background points.
+
+
+### Load Bioclim variables
+
+```{r}
+library(raster) 
+library(terra)
+library(skimr)
+```
+
+```{r}
+bioclim_data <- rast("raw_data/worldclim_australia.tif")
+```
+
+### Load other useful variables
+
+Soil is a key variable we've been instructed to investigate.
+
+
+
+The bioclim raster contains the 19 bioclim variables from CHELSA v2.1 BIOCLIM variables. I'll use the code I used in the Week 8 workshop to filter out variables with strong correlations to others. Since the variables are all either rainfall or temperature related, there is plenty of correlation.
+
+
 
 * look at soil and landscape grid of Australia, in addition to CHELSA and WorldClim etc.
 * Add soil atlas into the model
