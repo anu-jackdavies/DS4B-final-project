@@ -591,8 +591,6 @@ Note there were some soil moisture variables, but I didn't include them since th
 
 Cropping soil variable data to the buffer area from background points:
 ```{r}
-soil_asc_crop       <- crop(soil_atlas,     buffer_vect)
-soil_atlas_crop     <- crop(soil_atlas,     buffer_vect)
 soil_illite_crop    <- crop(soil_illite,    buffer_vect)
 soil_kaolinite_crop <- crop(soil_kaolinite, buffer_vect)
 soil_smectite_crop  <- crop(soil_smectite,  buffer_vect)
@@ -602,14 +600,11 @@ soil_smectite_crop  <- crop(soil_smectite,  buffer_vect)
 
 Getting the soil variables to match CHELSA bioclim resolution:
 ```{r}
-soil_asc_crop       <- resample(soil_asc_crop,     bioclim_chelsa)
-soil_atlas_crop     <- resample(soil_atlas_crop,     bioclim_chelsa)
 soil_illite_crop    <- resample(soil_illite_crop,    bioclim_chelsa)
 soil_kaolinite_crop <- resample(soil_kaolinite_crop, bioclim_chelsa)
 soil_smectite_crop  <- resample(soil_smectite_crop,  bioclim_chelsa)
 # done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
 ```
-
 
 
 ### Model Selection
@@ -655,8 +650,6 @@ selected_predictors <- c(
                     "CHELSA_bio19_1981-2010_V.2.1",
                     "CHELSA_bio3_1981-2010_V.2.1",
                     "CHELSA_bio7_1981-2010_V.2.1")]],
-  soil_asc_crop,
-  soil_atlas_crop,
   soil_illite_crop,
   soil_kaolinite_crop,
   soil_smectite_crop
@@ -718,3 +711,127 @@ print(predictor_vars)
 ```
 These are the variables which have survived the collinearity test and can now be potentially included in the SDM model.
 
+## Fitting GLM and GAM
+
+Following the week 8 workshop process:
+```{r}
+# GLM: linear model
+formula_glm <- formula(paste0("presence ~ ", paste0(predictor_vars, collapse = " + ")))
+
+# GAM: non-linear model with splines (k = basis dimension, controls wiggliness)
+formula_gam <- formula(paste0("presence ~ ", paste0("s(", predictor_vars,", k = 4)", collapse = " + ")))
+
+# Inspect formulas
+print(formula_glm)
+
+print(formula_gam)
+```
+
+Using the selected predictors in a GLM:
+```{r}
+# Fit GLM (logistic regression)
+glm_sdm <- glm(formula_glm, data = sdm_data_uncor, family = binomial(link = "logit"))
+summary(glm_sdm)
+```
+
+```{r}
+# Fit GAM (using mgcv, which correctly handles smooth terms in predict)
+gam_sdm <- mgcv::gam(formula_gam, data = sdm_data_uncor, family = binomial(link = "logit"))
+summary(gam_sdm)
+```
+
+```{r}
+gam_sdm$aic
+```
+
+Looking at potential variable removal, the GLM suggests most variables are significant and should be included, with doubts on smectite, illite levels (% content in 0-20cm soil depth) and particularly isothermality (day–night variability in temperature, mean monthly avg temp range (max-min) over the annual mean temp range * 100).
+
+The GAM summary changes the overall picture. It makes bio18 a strong candidate for removal, and this makes sense since bio18 and bio19 are the mean monthly precipitations in the warmest and coldest quarters respectively, and likely explain the same type of change in the data, hence one can be removed (bio18 here). Meanwhile all of the other doubtful variables are more significant than in GLM, suggesting they do explain variation in presence to a significant level, just non-linearly.
+
+Note that GAM has lower AIC and better deviance explained than GLM, indicating better model fit. Also note I tried fitting GAM with different k-values but k = 4 worked the best (had more significant variables).
+
+So, I'll drop bio18 and check again.
+
+```{r}
+sdm_data_uncor <- dplyr::select(sdm_data_uncor, -Bio18)
+predictor_vars <- predictor_vars[predictor_vars != "Bio18"]
+
+# made with Claude help https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+```{r}
+# GLM: linear model
+formula_glm <- formula(paste0("presence ~ ", paste0(predictor_vars, collapse = " + ")))
+
+# GAM: non-linear model with splines (k = basis dimension, controls wiggliness)
+formula_gam <- formula(paste0("presence ~ ", paste0("s(", predictor_vars,", k = 4)", collapse = " + ")))
+
+# Inspect formulas
+print(formula_glm)
+
+print(formula_gam)
+```
+
+```{r}
+# Fit GLM (logistic regression)
+glm_sdm <- glm(formula_glm, data = sdm_data_uncor, family = binomial(link = "logit"))
+summary(glm_sdm)
+```
+
+```{r}
+# Fit GAM (using mgcv, which correctly handles smooth terms in predict)
+gam_sdm <- mgcv::gam(formula_gam, data = sdm_data_uncor, family = binomial(link = "logit"))
+summary(gam_sdm)
+```
+The deviance explained and adjusted R^2 have ever so slightly reduced and AIC increased after dropping Bio18 but this is not of major concern due to the benefit of a more simple model for the SDM.
+
+Checking out AUC as I have in Week 8:
+
+```{r}
+library(dismo)
+```
+
+```{r}
+# Split presence and background, drop rows with missing predictors so
+# predict() returns a clean, matching-length vector.
+p <- na.omit(sdm_data_uncor[sdm_data_uncor$presence == 1, ])
+a <- na.omit(sdm_data_uncor[sdm_data_uncor$presence == 0, ])
+
+# Get predicted suitability for presence and background points separately, and
+# strip dims/names with as.numeric() so dismo::evaluate() recognises them as
+# plain vectors (predict.gam returns a 1-D array, which dismo misinterprets).
+glm_pred_p <- as.numeric(predict(glm_sdm, newdata = p, type = "response"))
+glm_pred_a <- as.numeric(predict(glm_sdm, newdata = a, type = "response"))
+gam_pred_p <- as.numeric(predict(gam_sdm, newdata = p, type = "response"))
+gam_pred_a <- as.numeric(predict(gam_sdm, newdata = a, type = "response"))
+
+# Evaluate models using the predicted values directly.
+# evaluate() returns an S4 object — use @ (not $) to access slots, e.g. glm_eval@auc
+glm_eval <- evaluate(p = glm_pred_p, a = glm_pred_a)
+gam_eval <- evaluate(p = gam_pred_p, a = gam_pred_a)
+
+# Plot ROC curves
+par(mfrow = c(1, 2))
+plot(glm_eval, "ROC")
+plot(gam_eval, "ROC")
+```
+According to Lecture 8, AUC of 1 is perfect and around 0.8 is indicative of a reasonable SDM. The GAM AUC of 0.872 is quite good therefore.
+
+## Making SDM plots
+
+Stacking rasters for the chosen variables:
+```{r}
+selected_predictors <- c(
+  bioclim_chelsa[[c("CHELSA_bio19_1981-2010_V.2.1",
+                    "CHELSA_bio3_1981-2010_V.2.1",
+                    "CHELSA_bio7_1981-2010_V.2.1")]],
+  soil_illite_crop,
+  soil_smectite_crop
+)
+names(selected_predictors)[1:3] <- c("Bio19", "Bio03", "Bio07")
+names(selected_predictors)[4:5] <- c("Soil_Illite", "Soil_Smectite")
+```
+
+
+Now I want to make plots with the GLM, GAM, expert range and alpha hull to compare them.
+I'd rather avoid using leaflet as I think it's 
