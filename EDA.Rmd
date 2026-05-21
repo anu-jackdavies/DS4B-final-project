@@ -324,6 +324,7 @@ ggplot() +
            expand = FALSE) +
   guides(colour = guide_colorbar(title = "Number of overlapping observations"))
 ```
+
 ### Investigate last outliers
 
 Before fitting my SDM I want to investigate the two easternmost points and the two northernmost points since they are either far out of the expert range or otherwise distant from other occurrences.
@@ -346,13 +347,23 @@ https://biocache.ala.org.au/occurrences/fc615d1b-3c6f-48fb-9a9c-0440304758c1
 https://www.anbg.gov.au/biography/nicolle-dean.html
 
 Second northern point:
-Identified by Dean Nicolle again in 2024 using iNaturalist, collector/user is Malcolm Simard, a non-professional but likely accompanied by Nicolle. The observation is labelled as research grade by ALA, and for these reasons it will be included. Potentially the IUCN made their expert range before this observation was found, perhaps explaining why it is out of the range while the last one isn't.
+Identified by Dean Nicolle again in 2024 using iNaturalist, collector/user is Malcolm Simard, a non-professional but likely accompanied by Nicolle. The observation is labelled as research grade by ALA and was overseen by an expert so I will include it in my data.
 https://biocache.ala.org.au/occurrences/a47f74ac-9bdc-4987-b933-b6b8a6bef9a3
 
 
 So, I am now happy with my data and ready to progress.
 
 # Assess whether expert range map should be changed
+
+Considering the data cleaning I have performed, I do believe the IUCN expert range map should be slightly modified.
+
+However, the extent to which it should be changed is dependent on interpretation, the two main ones I am considering being:
+
+a) Adjust the range to include all of the clean data points e.g. extend quite far eastwards to cover the two far-east points?
+
+b) Make only slight shifts to the expert range map to better reflect the clean data I've chosen to use, but not having to cover every single occurrence point e.g. cutting certain parts inwards to remove blank space without observations in my data, and shift range by about 1 degree eastwards to cover the many observations around Stirling National Park.
+
+I think that I would favour making minor changes to the existing range akin to interpretation b), but the process of building an SDM will help validate/change my approach.
 
 # Build SDM for E. decipiens suitable climate space
 
