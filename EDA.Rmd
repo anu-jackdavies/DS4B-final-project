@@ -299,6 +299,47 @@ https://www.google.com/maps/@-34.3899856,117.3228533,196844m/data=!3m1!1e3?entry
 
 It is my suspicion that there are far more E. decipiens out there in the other forest areas that are less visited by humans, and these clusters are primarily the result of bias towards more populated/visited areas, parks and roads.
 
+Some of the entries have NA occurrence date. Since later on I will be projecting the SDM into the future (2100), I can't rely on undated occurrences to build or project the model. This is because if I don't know what date the occurrence is from, how can I know how it's position might change over time?
+
+Removing undated entries:
+```{r}
+decipiens_clean <- decipiens_clean %>% 
+  filter(!is.na(eventDate))
+```
+
+Now there are only 161 entries. Replotting:
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) + 
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.2) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+### Investigate last outliers
+
+Before fitting my SDM I want to investigate the two easternmost points and the two northernmost points since they are either far out of the expert range or otherwise distant from other occurrences.
+
+The easternmost point is from PlantBank Records and recorded by Donald F. Blaxell in 1986, a reputable botanist with an interest in Eucalyptus. 
+https://www.anbg.gov.au/biography/blaxell-donald-frederick.html
+
+The ALA page for the occurrence also shows no obvious signs of irregularity compared to other E. decipiens observations so I'll keep this observation.
+https://biocache.ala.org.au/occurrences/72b4f887-718f-433b-ba49-865a90d017eb
+
+The other eastern point is from the Salinity Action Plan Flora Survey in 1999.
+It has good info available on the ALA page and it was recorded by members of the Department of Conservation and Land Management (M N Lyons and S D Lyons), so I will keep it in the dataset too.
+https://biocache.ala.org.au/occurrences/d63a3a75-e955-412e-83b6-302a712695aa
+https://researchdata.edu.au/salinity-action-plan-flora-survey/3877978
+
+
 Once I've made my decisions on how to clean the data and remade this plot, 
 I can:
 
