@@ -413,8 +413,12 @@ The process of building an SDM will help validate/change these approach ideas.
 
 Before loading variables and model selection, it is important to choose background points.
 
+Of the four main strategies for choosing background points, I believe that accessible area is the clear candidate for E. decipiens. This is because as with most/all eucalypts, they are unlikely to disperse very far at all, with Booth (2017) presenting a typical seed dispersal limit of around 5km until 2085 across over 600 eucalypts.
+https://doi.org/10.1071/BT17019
 
-### Load Bioclim variables
+Environmental envelope would ignore the incapability of far-reaching dispersal for E. decipiens, while the other two methods sample across all of Australia which would not be appropriate for this data which is localised to the corner of Western Australia. Hence, I will be using the accessible area background points approach.
+
+First I need to load the bioclim raster which contains the 19 bioclim variables from CHELSA v2.1 BIOCLIM, as 'bioclim_data' is needed in the code chunk.
 
 ```{r}
 library(raster) 
@@ -425,6 +429,110 @@ library(skimr)
 ```{r}
 bioclim_data <- rast("raw_data/worldclim_australia.tif")
 ```
+
+Pruning data to one point per grid cell, using Alex's week 8 workshop code:
+```{r}
+# prune data to one point per grid cell
+# Create SpatVector
+occ_v <- vect(decipiens_clean, geom = c("decimalLongitude", "decimalLatitude"), crs = crs(bioclim_data))
+
+# Get raster cell IDs
+occ_v$cell_id <- cellFromXY(bioclim_data, crds(occ_v))
+
+# Keep one point per raster cell
+occ_pruned <- occ_v[!duplicated(occ_v$cell_id), ]
+
+# Extract climate
+occ_env <- terra::extract(
+  bioclim_data,
+  occ_pruned,
+  ID = FALSE
+) |> 
+  as_tibble()
+
+occ_model <- bind_cols(
+  as_tibble(crds(occ_pruned)) |> 
+    setNames(c("longitude", "latitude")),
+  occ_env
+) |> 
+  mutate(presence = 1)
+```
+
+
+Now I can use more code from the week 8 workshop to make the accessible area background points.
+
+```{r}
+# Convert occurrence data to sf object (needed for spatial operations)
+occ_sf <- st_as_sf(decipiens_clean, coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
+
+occ_proj <- st_transform(occ_sf, 3577)
+
+buffer <- st_buffer(occ_proj, dist = 50000) |>
+  st_union()
+
+buffer_vect <- vect(st_transform(buffer, 4326))
+
+bg <- spatSample(
+  mask(bioclim_data, buffer_vect),
+  size = 5000,
+  method = "random",
+  na.rm = TRUE,
+  as.points = TRUE
+)
+
+bg_env <- terra::extract(bioclim_data, bg, ID = FALSE) |>
+  as_tibble()
+
+bg_model <- bind_cols(
+  st_coordinates(st_as_sf(bg)) |>
+    as_tibble() |>
+    rename(longitude = X, latitude = Y),
+  bg_env
+) |>
+  mutate(presence = 0)
+```
+
+I chose to implement a 50km buffer somewhat arbitrarily, as an approximation or guess of where more unobserved E. decipiens occurrences could feasibly be without being recorded yet. I tested larger and smaller values, but too large meant the background points covered the whole southwestern corner of WA (not terrible but unnecessary) and too small left gaps between known observations which I think could contain legitimate observations.
+
+### Plotting Background points on map
+
+Using leaflet, I'll quickly visualise the background points to make sure it's working before model fitting.
+Again, I'll be utilising the week 8 workshop code:
+
+```{r}
+library(leaflet)
+```
+
+```{r}
+leaflet() |>
+  addProviderTiles(providers$OpenStreetMap.Mapnik) |>
+
+  # Add a climate raster layer (e.g. Bio01)
+  addRasterImage(raster::raster(bioclim_data$Bio01), opacity = 0.5) |>
+
+  # Plot background points in grey
+  addCircleMarkers(
+    data = bg_model,
+    lng = ~longitude, lat = ~latitude,
+    radius = 3,
+    fillOpacity = 0.4,
+    stroke = FALSE,
+    color = "grey"
+  ) |>
+
+  # Plot occurrence points in blue on top
+  addCircleMarkers(
+    data = occ_model,
+    lng = ~longitude, lat = ~latitude,
+    radius = 5,
+    fillOpacity = 0.7,
+    stroke = FALSE,
+    color = "#2C7FB8"
+  )
+```
+
+
+
 
 ### Load other useful variables
 
