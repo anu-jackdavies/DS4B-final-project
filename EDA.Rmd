@@ -577,8 +577,41 @@ library(SLGACloud)
 This page is where the data can be looked at or accessed manually if you wish: https://esoil.io/TERNLandscapes/Public/Pages/SLGA/GetData-COGSDataStore.html
 
 
+I found quite a few soil-related variables from the SLGA metadata which I will now import:
+```{r}
+soil_asc <-  cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_ASC.tif')
+soil_atlas     <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Atlas.tif')
+soil_illite    <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Illite.tif')
+soil_kaolinite <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Kaolinite.tif')
+soil_smectite  <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Smectite.tif')
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
 
-### Filter variables
+Note there were some soil moisture variables, but I didn't include them since their data was exclusively for 2015-2020, which doesn't line up with the 1981-2010 data of the bioclim variables at all.
+
+Cropping soil variable data to the buffer area from background points:
+```{r}
+soil_asc_crop       <- crop(soil_atlas,     buffer_vect)
+soil_atlas_crop     <- crop(soil_atlas,     buffer_vect)
+soil_illite_crop    <- crop(soil_illite,    buffer_vect)
+soil_kaolinite_crop <- crop(soil_kaolinite, buffer_vect)
+soil_smectite_crop  <- crop(soil_smectite,  buffer_vect)
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+
+Getting the soil variables to match CHELSA bioclim resolution:
+```{r}
+soil_asc_crop       <- resample(soil_asc_crop,     bioclim_chelsa)
+soil_atlas_crop     <- resample(soil_atlas_crop,     bioclim_chelsa)
+soil_illite_crop    <- resample(soil_illite_crop,    bioclim_chelsa)
+soil_kaolinite_crop <- resample(soil_kaolinite_crop, bioclim_chelsa)
+soil_smectite_crop  <- resample(soil_smectite_crop,  bioclim_chelsa)
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+
+### Model Selection
 
 Starting with bioclim:
 I'll use the code I used in the Week 8 workshop to filter out variables with strong correlations to others. Since the variables are all either rainfall or temperature related, there is plenty of correlation.
