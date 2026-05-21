@@ -834,4 +834,110 @@ names(selected_predictors)[4:5] <- c("Soil_Illite", "Soil_Smectite")
 
 
 Now I want to make plots with the GLM, GAM, expert range and alpha hull to compare them.
-I'd rather avoid using leaflet as I think it's 
+
+I can do this by adapting the leaflet plotting code I worked through in the Week 8 workshop.
+I'd like to use static plots instead of leaflet as it's less complex and makes for simpler interpretation in the presentation.
+
+```{r}
+library(patchwork)
+library(tidyterra)
+library(rangeBuilder)
+```
+Generating predictions for current distribution:
+
+```{r}
+pred_glm <- terra::predict(selected_predictors, glm_sdm, type = "response")
+pred_gam <- terra::predict(selected_predictors, gam_sdm, type = "response")
+
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+
+Getting alpha hull:
+```{r}
+hull <- getDynamicAlphaHull(
+  x = decipiens_clean[, c("decimalLongitude", "decimalLatitude")],
+  fraction = 0.95,
+  partCount = 1
+)
+hull_sf <- st_as_sf(hull[[1]])
+```
+
+As I'm working with geom sf and static plot not leaflet, I can't set the alpha value myself. Instead the code dyamically sets alpha such that the specific fraction of the occurrences are encompassed by the hull.
+
+GLM Plot:
+```{r}
+plot_glm <- ggplot() +
+  geom_spatraster(data = pred_glm) +
+  scale_fill_distiller(palette = "Spectral", na.value = "transparent",
+                       limits = c(0, 1), name = "Suitability") +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude),
+             colour = "pink", size = 0.8, alpha = 0.5) +
+  labs(title = "GLM Suitability") +
+  theme_minimal()
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+GAM plot:
+```{r}
+plot_gam <- ggplot() +
+  geom_spatraster(data = pred_gam) +
+  scale_fill_distiller(palette = "Spectral", na.value = "transparent",
+                       limits = c(0, 1), name = "Suitability") +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude),
+             colour = "pink", size = 0.8, alpha = 0.5) +
+  labs(title = "GAM Suitability") +
+  theme_minimal()
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+Alpha hull + expert range plot:
+```{r}
+p3 <- ggplot() +
+  geom_sf(data = IUCN_map, fill = "lightgreen", colour = "darkgreen",
+          alpha = 0.4, linewidth = 0.5) +
+  geom_sf(data = hull_sf, fill = "steelblue", colour = "steelblue",
+          alpha = 0.2, linewidth = 0.5, linetype = "dashed") +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude),
+             colour = "pink", size = 0.8, alpha = 0.5) +
+  labs(title = "Expert Range vs Alpha Hull") +
+  theme_minimal()
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+
+Combine all of the plots:
+```{r}
+plot_glm + plot_gam + p3 +
+  plot_layout(ncol = 3) +
+  plot_annotation(
+    title = "Eucalyptus decipiens — Habitat Suitability & Range Comparison",
+    theme = theme(plot.title = element_text(hjust = 0.5))
+  )
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+```{r}
+ggplot() +
+  geom_spatraster(data = pred_gam) +
+  scale_fill_distiller(palette = "Spectral", na.value = "transparent",
+                       limits = c(0, 1), name = "Suitability") +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.7) +
+  geom_sf(data = hull_sf, aes(colour = "Alpha Hull"), fill = NA,
+          linewidth = 0.7) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "Alpha Hull" = "aquamarine",
+               "Occurrences" = "hotpink")
+  ) +
+  labs(title = "E. decipiens GAM Suitability, IUCN Range & Alpha Hull",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
+# Made with Claude assistance, but primarily edited by me: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
