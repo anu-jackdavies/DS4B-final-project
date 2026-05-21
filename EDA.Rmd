@@ -532,16 +532,56 @@ leaflet() |>
 ```
 
 
+### Load CHELSA V2.1 historical bioclim variables
+
+The current 'bioclim_data' has a low resolution:
+```{r}
+res(bioclim_data)
+# about 9km according to Claude https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+and seems to be from worldclim not CHELSA V2.1 bioclim. Because of this I'll make sure to import the higher res CHELSA bioclim variables now:
 
 
-### Load other useful variables
+```{r}
+if (!file.exists("raw_data/chelsa_bioclim_cropped.tif")) {
+  bioclim_chelsa <- lapply(1:19, function(i) {
+    url <- paste0("/vsicurl/https://os.zhdk.cloud.switch.ch/chelsav2/GLOBAL/climatologies/1981-2010/bio/CHELSA_bio",
+                  i, "_1981-2010_V.2.1.tif")
+    message("Loading and cropping bio", i, "...")
+    crop(rast(url), buffer_vect)
+  }) |> rast()
+  writeRaster(bioclim_chelsa, "raw_data/chelsa_bioclim_cropped.tif", overwrite = TRUE)
+}
 
-Soil is a key variable we've been instructed to investigate.
+bioclim_chelsa <- rast("raw_data/chelsa_bioclim_cropped.tif")
+# made with Claude asssistance to load variables without requiring physical download
+# https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+The above chunk may take a long time to load the data, so I've used the if condition such that if you download 'chelsa_bioclim_cropped.tif', you can skip the long part saving time on knitting.
+
+```{r}
+res(bioclim_chelsa)
+```
+This is 10x better resolution (30 arcseconds, around 1km resolution). The reason I went through this is because the soil variables used below have 90m resolution, so having to downscale it less will be better for model fitting (aka I've tried to minimise gap in resolutions so scaling down soil variable res won't be amplifying as much noise)
+
+### Load useful soil variables
+
+Soil is a key area we've been instructed to investigate, with some recommended sources. Claude helped me find a way to get data from the Soil and Landscape Grid of Australia (SLGA) which I was struggling to obtain myself:
+```{r}
+#remotes::install_github("AusSoilsDSM/SLGACloud")
+library(SLGACloud)
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+This page is where the data can be looked at or accessed manually if you wish: https://esoil.io/TERNLandscapes/Public/Pages/SLGA/GetData-COGSDataStore.html
 
 
 
-The bioclim raster contains the 19 bioclim variables from CHELSA v2.1 BIOCLIM variables. I'll use the code I used in the Week 8 workshop to filter out variables with strong correlations to others. Since the variables are all either rainfall or temperature related, there is plenty of correlation.
+### Filter variables
 
+Starting with bioclim:
+I'll use the code I used in the Week 8 workshop to filter out variables with strong correlations to others. Since the variables are all either rainfall or temperature related, there is plenty of correlation.
 
 
 * look at soil and landscape grid of Australia, in addition to CHELSA and WorldClim etc.
