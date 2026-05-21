@@ -611,11 +611,110 @@ soil_smectite_crop  <- resample(soil_smectite_crop,  bioclim_chelsa)
 ```
 
 
+
 ### Model Selection
 
-Starting with bioclim:
-I'll use the code I used in the Week 8 workshop to filter out variables with strong correlations to others. Since the variables are all either rainfall or temperature related, there is plenty of correlation.
+I'll adapt the code I used in the Week 8 workshop to filter out bioclim variables with strong correlations to others. Since the variables are all either rainfall or temperature related, there is plenty of correlation so many should be removed:
 
+```{r}
+sdm_data <- bind_rows(occ_model, bg_model)
+```
 
-* look at soil and landscape grid of Australia, in addition to CHELSA and WorldClim etc.
-* Add soil atlas into the model
+Checking for bioclim collinearity:
+```{r}
+library(caret)
+```
+
+```{r}
+bio_cols <- grep("^Bio", colnames(sdm_data), value = TRUE)
+correlation_matrix <- cor(sdm_data[, bio_cols], use = "complete.obs")
+
+correlated <- findCorrelation(correlation_matrix, cutoff = 0.7)  # |r| > 0.7
+names_correlated <- bio_cols[correlated]
+```
+
+```{r}
+# Remove highly correlated variables
+sdm_data_uncor <- sdm_data[, !colnames(sdm_data) %in% names_correlated]
+
+# Keep track of predictors
+predictor_vars <- grep("^Bio", colnames(sdm_data_uncor), value = TRUE)
+print(predictor_vars)
+```
+Mean Daily Mean Near-Surface Air Temperature of the Quarter (bio11),
+Mean Monthly Precipitation of the Warmest Quarter (bio18),
+Mean Monthly Precipitation of the Coldest Quarter (bio19),
+Isothermality (bio03),
+Annual Daily Mean Near-Surface Air Temperature Range (bio07) remain.
+
+Now I'll group in the soil variables and test for collinearity once again.
+```{r}
+selected_predictors <- c(
+  bioclim_chelsa[[c("CHELSA_bio11_1981-2010_V.2.1",
+                    "CHELSA_bio18_1981-2010_V.2.1",
+                    "CHELSA_bio19_1981-2010_V.2.1",
+                    "CHELSA_bio3_1981-2010_V.2.1",
+                    "CHELSA_bio7_1981-2010_V.2.1")]],
+  soil_asc_crop,
+  soil_atlas_crop,
+  soil_illite_crop,
+  soil_kaolinite_crop,
+  soil_smectite_crop
+)
+
+names(selected_predictors)[1:5] <- c("Bio11", "Bio18", "Bio19", "Bio03", "Bio07")
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+Simplified names of bioclim predictors for ease of use.
+
+I need to re-extract and rebuild sdm_data with the soil variables now:
+```{r}
+occ_env <- terra::extract(
+  selected_predictors,
+  occ_pruned,
+  ID = FALSE
+) |> 
+  as_tibble()
+
+occ_model <- bind_cols(
+  as_tibble(crds(occ_pruned)) |> 
+    setNames(c("longitude", "latitude")),
+  occ_env
+) |> 
+  mutate(presence = 1)
+
+bg_env <- terra::extract(selected_predictors, bg, ID = FALSE) |>
+  as_tibble()
+
+bg_model <- bind_cols(
+  st_coordinates(st_as_sf(bg)) |>
+    as_tibble() |>
+    rename(longitude = X, latitude = Y),
+  bg_env
+) |>
+  mutate(presence = 0)
+
+sdm_data <- bind_rows(occ_model, bg_model)
+# Advice on how to tweak code here from Claude https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+Now I can test collinearity again:
+```{r}
+# Get all predictor columns (everything except longitude, latitude, presence)
+all_pred_cols <- colnames(sdm_data)[!colnames(sdm_data) %in% c("longitude", "latitude", "presence")]
+correlation_matrix <- cor(sdm_data[, all_pred_cols], use = "complete.obs")
+correlated <- findCorrelation(correlation_matrix, cutoff = 0.7)
+names_correlated <- all_pred_cols[correlated]
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+```{r}
+# Remove highly correlated variables
+sdm_data_uncor <- sdm_data[, !colnames(sdm_data) %in% names_correlated]
+# Keep track of all remaining predictors
+predictor_vars <- colnames(sdm_data_uncor)[!colnames(sdm_data_uncor) %in% c("longitude", "latitude", "presence")]
+print(predictor_vars)
+```
+These are the variables which have survived the collinearity test and can now be potentially included in the SDM model.
+
