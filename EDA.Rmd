@@ -340,8 +340,17 @@ https://biocache.ala.org.au/occurrences/d63a3a75-e955-412e-83b6-302a712695aa
 https://researchdata.edu.au/salinity-action-plan-flora-survey/3877978
 
 
-Once I've made my decisions on how to clean the data and remade this plot, 
-I can:
+Northernmost point (it is within IUCN expert range):
+Collected then recorded on iNaturalist by Dean Nicolle in 2010, a leading expert in eucalyptus botany. It has plenty of information on ALA including that it is wild, not cultivated. For these reasons the data point is reputable and it will be included. The fact it was by Nicolle may have influenced the IUCN experts to make their range wrap around this point too.
+https://biocache.ala.org.au/occurrences/fc615d1b-3c6f-48fb-9a9c-0440304758c1
+https://www.anbg.gov.au/biography/nicolle-dean.html
+
+Second northern point:
+Identified by Dean Nicolle again in 2024 using iNaturalist, collector/user is Malcolm Simard, a non-professional but likely accompanied by Nicolle. The observation is labelled as research grade by ALA, and for these reasons it will be included. Potentially the IUCN made their expert range before this observation was found, perhaps explaining why it is out of the range while the last one isn't.
+https://biocache.ala.org.au/occurrences/a47f74ac-9bdc-4987-b933-b6b8a6bef9a3
+
+
+So, I am now happy with my data and ready to progress.
 
 # Assess whether expert range map should be changed
 
