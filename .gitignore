@@ -47,3 +47,6 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+raw_data/bio03_australia_2071-2100.tif
+raw_data/bio07_australia_2071-2100.tif
+raw_data/Unconfirmed 983514.crdownload

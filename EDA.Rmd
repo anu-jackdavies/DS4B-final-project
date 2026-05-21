@@ -38,7 +38,7 @@ library(ozmaps)
 library(here) 
 ```
 
-Using galah_call to get ALA occurrence data for **Eucalyptus decipens**:
+Using galah_call to get ALA occurrence data for **Eucalyptus decipiens**:
 ```{r}
 galah_config(email = "iamjackdavies@gmail.com")
 galah_call() %>% 
@@ -817,7 +817,7 @@ plot(gam_eval, "ROC")
 ```
 According to Lecture 8, AUC of 1 is perfect and around 0.8 is indicative of a reasonable SDM. The GAM AUC of 0.872 is quite good therefore.
 
-## Making SDM plots
+# Plot the SDM
 
 Stacking rasters for the chosen variables:
 ```{r}
@@ -940,4 +940,72 @@ ggplot() +
   theme_minimal()
 # Made with Claude assistance, but primarily edited by me: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
 ```
+
+
+# Projecting Model to 2100
+
+In order to project the model to see how E. decipiens' suitable climate is predicted to change, I need to get some CHELSA V2.1 Bioclim variables for 2071-2100.
+
+To get the CHELSA 2071-2100 data, I need to determine which Global Climate Model (GCM) and Shared Socioeconomic Pathway (SSP) to select. 
+
+### Select SSP and GCM
+
+From reading Hausfather and Peters (2020), the choice of SSP depends on what I believe is a reasonable prediction of global warming up to 2100.
+Considering the tracking of current policies compared to the pledged policies shown in that paper, I have determined that a weak mitigation of global warming (+3 degrees by 2100) is probably most likely, while +2.5 degrees may be possible if the progress and policies improve. I'll therefore use SSP4 - 6.0 (+3 degrees) and then also test SSP2 - 4.5 (+2.5) to see how that changes my model projection.
+
+Hausfather et. al (2022) warns that the CMIP6 GCMs can be highly-sensitive and a "hot-model" which projects extreme temperature increase of 5+ degrees regularly due to noise/variation influencing the mean per month/year etc. The paper discusses how the IUCN's AR6 report excluded the "too-hot" models from CMIP6 to avoid over sensitivity and get a realistic projection, instead of opting for the older CMIP5. I will opt to use CMIP6 but filter to only use GCMs for the 'likely' +2.5-4 degree range to get a realistic AR6 like projection (Hausfather et. al, 2022).
+
+
+### Import CHELSA SSP data
+In CHELSA, the SSP options are only SSP1 - 2.6, SSP3 - 7.0 and SSP5 - 8.5. I'll choose SSP3 as this is between the SSP2 and SSP4 options I thought would be good before.
+
+Getting Bioclim variables which were in my SDM model:
+Bio3 (isothermality)
+```{r}
+
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio03/2071-2100/IPSL-CM6A-LR/ssp370/CHELSA_ipsl-cm6a-lr_ssp370_bio03_2071-2100_V.2.1.tif"
+
+bio3_fut <- rast(url)
+
+
+bio3_fut_crop <- crop(bio3_fut, buffer_vect)
+
+
+writeRaster(bio3_fut_crop, "raw_data/bio03_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+Bio19 (mean monthly precip in coldest quarter)
+```{r}
+
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio19/2071-2100/IPSL-CM6A-LR/ssp370/CHELSA_ipsl-cm6a-lr_ssp370_bio19_2071-2100_V.2.1.tif"
+
+bio19_fut <- rast(url)
+
+bio19_fut_crop <- crop(bio19_fut, buffer_vect)
+
+writeRaster(bio19_fut_crop, "raw_data/bio19_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+Bio7 (Annual daily mean near-surface temperature range)
+```{r}
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio07/2071-2100/IPSL-CM6A-LR/ssp370/CHELSA_ipsl-cm6a-lr_ssp370_bio07_2071-2100_V.2.1.tif"
+
+bio07_fut <- rast(url)
+
+bio07_fut_crop <- crop(bio07_fut, buffer_vect)
+
+writeRaster(bio07_fut_crop, "raw_data/bio07_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+
+Stack the future Bio variables into a single raster
+
+
+## Fit 2100 Prediction Model
 
