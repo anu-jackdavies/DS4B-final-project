@@ -407,6 +407,8 @@ b) Make only slight shifts to the expert range map to better reflect the clean d
 
 The process of building an SDM will help validate/change these approach ideas.
 
+*important note: The data which I initially loaded into R, 'decipiens', had ALA filters already applied to it e.g. only including 'wild' labelled occurrences, not 'cultivated'. So other concerns I haven't mentioned here were likely already addressed by the ALA filters.
+
 # Build SDM for E. decipiens suitable climate space
 
 ## Background Points
@@ -916,6 +918,7 @@ plot_glm + plot_gam + p3 +
   )
 # Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
 ```
+### Best Model Plot
 
 ```{r}
 ggplot() +
@@ -941,6 +944,47 @@ ggplot() +
 # Made with Claude assistance, but primarily edited by me: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
 ```
 
+### Thresholding suitability
+
+As done in week 8 workshop:
+```{r}
+pred_glm_threshold <- threshold(glm_eval, stat = "spec_sens")
+pred_gam_threshold <- threshold(gam_eval, stat = "spec_sens")
+
+pred_glm_bin <- pred_glm > pred_glm_threshold
+pred_gam_bin <- pred_gam > pred_gam_threshold
+```
+
+Making GAM vs hull vs expert range plot again with thresholding:
+```{r}
+ggplot() +
+  geom_spatraster(data = pred_gam_bin) +
+  scale_fill_manual(
+    values = c("FALSE" = "#FFFDD6", "TRUE" = "#4DAF4A"),
+    na.value = "transparent",
+    na.translate = FALSE,
+    name = "Suitability",
+    labels = c("FALSE" = "Unsuitable", "TRUE" = "Suitable")
+  ) +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.73) +
+  geom_sf(data = hull_sf, aes(colour = "Alpha Hull"), fill = NA,
+          linewidth = 0.7) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "Alpha Hull" = "cyan2",
+               "Occurrences" = "blue")
+  ) +
+  labs(title = "E. decipiens GAM Suitability, IUCN Range & Alpha Hull",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
+
+# Made with Claude assistance: https://claude.ai/share/af6e6c8c-0d2b-4f57-bf77-e20d32f3e46c
+```
 
 # Projecting Model to 2100
 
@@ -968,10 +1012,10 @@ url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/
 bio3_fut <- rast(url)
 
 
-bio3_fut_crop <- crop(bio3_fut, buffer_vect)
+bio03_fut_crop <- crop(bio3_fut, buffer_vect)
 
 
-writeRaster(bio3_fut_crop, "raw_data/bio03_australia_2071-2100.tif", overwrite = TRUE)
+writeRaster(bio03_fut_crop, "raw_data/bio03_australia_2071-2100.tif", overwrite = TRUE)
 
 # Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
 ```
@@ -1005,7 +1049,22 @@ writeRaster(bio07_fut_crop, "raw_data/bio07_australia_2071-2100.tif", overwrite 
 
 
 Stack the future Bio variables into a single raster
+```{r}
+future_stack <- c(bio03_fut_crop,
+                  bio19_fut_crop,
+                  bio07_fut_crop,
+                  soil_illite_crop,
+                  soil_smectite_crop
+                  )
+```
 
 
 ## Fit 2100 Prediction Model
+
+I can use the predict() function instead of having to refit the entire SDM:
+```{r}
+names(future_stack) <- names(selected_predictors)
+
+fut_pred <- predict(future_stack, gam_sdm, fun = predict, type = "response")
+```
 
