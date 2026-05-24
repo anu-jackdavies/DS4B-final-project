@@ -642,7 +642,7 @@ library(caret)
 bio_cols <- grep("^Bio", colnames(sdm_data), value = TRUE)
 correlation_matrix <- cor(sdm_data[, bio_cols], use = "complete.obs")
 
-correlated <- findCorrelation(correlation_matrix, cutoff = 0.8)  # |r| > 0.7
+correlated <- findCorrelation(correlation_matrix, cutoff = 0.7)  # |r| > 0.7
 names_correlated <- bio_cols[correlated]
 ```
 
@@ -660,24 +660,33 @@ Mean Monthly Precipitation of the Coldest Quarter (bio19),
 Isothermality (bio03),
 Annual Daily Mean Near-Surface Air Temperature Range (bio07) remain.
 
-Now I'll group in the soil variables and test for collinearity once again.
+I want to include a temperature variable, not just isothermality or range, and while each of the max/min/mean avg temperature Bio variables are highly correlated with each other, I can still justifiably include *one* of these variables. I'll choose to include bio05, the Mean Daily Maximum Near-Surface Air Temperature of the Warmest Month as it will test how E. decipiens can cope with hot desert climates near its current distribution, and will be good for assessing future ranges as temperatures increase.
+
+```{r}
+predictor_vars <- c(predictor_vars, names(sdm_data["Bio05"]))
+sdm_data_uncor <- c(sdm_data_uncor, names(sdm_data["Bio05"]))
+```
+
+
+Now I'll group in the soil variables:
 ```{r}
 selected_predictors <- c(
   bioclim_chelsa[[c("CHELSA_bio11_1981-2010_V.2.1",
                     "CHELSA_bio18_1981-2010_V.2.1",
                     "CHELSA_bio19_1981-2010_V.2.1",
                     "CHELSA_bio3_1981-2010_V.2.1",
-                    "CHELSA_bio7_1981-2010_V.2.1")]],
-  soil_illite_crop,
-  soil_kaolinite_crop,
-  soil_smectite_crop
+                    "CHELSA_bio7_1981-2010_V.2.1",
+                    "CHELSA_bio5_1981-2010_V.2.1")]],
+  clay_crop,
+  soc_crop,
+  ph_crop
 )
 
-names(selected_predictors)[1:5] <- c("Bio11", "Bio18", "Bio19", "Bio03", "Bio07")
+names(selected_predictors) <- c("Bio11", "Bio18", "Bio19", "Bio03", "Bio07", "Bio05", "Clay", "SOC", "pH")
 # done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
 ```
 
-Simplified names of bioclim predictors for ease of use.
+Simplified names of predictors for ease of use.
 
 I need to re-extract and rebuild sdm_data with the soil variables now:
 ```{r}
@@ -710,24 +719,10 @@ sdm_data <- bind_rows(occ_model, bg_model)
 # Advice on how to tweak code here from Claude https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
 ```
 
-Now I can test collinearity again:
+Update predictors:
 ```{r}
-# Get all predictor columns (everything except longitude, latitude, presence)
-all_pred_cols <- colnames(sdm_data)[!colnames(sdm_data) %in% c("longitude", "latitude", "presence")]
-correlation_matrix <- cor(sdm_data[, all_pred_cols], use = "complete.obs")
-correlated <- findCorrelation(correlation_matrix, cutoff = 0.7)
-names_correlated <- all_pred_cols[correlated]
-# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+predictor_vars <- c("Bio11", "Bio18", "Bio19", "Bio03", "Bio07", "Bio05", "Clay", "SOC", "pH")
 ```
-
-```{r}
-# Remove highly correlated variables
-sdm_data_uncor <- sdm_data[, !colnames(sdm_data) %in% names_correlated]
-# Keep track of all remaining predictors
-predictor_vars <- colnames(sdm_data_uncor)[!colnames(sdm_data_uncor) %in% c("longitude", "latitude", "presence")]
-print(predictor_vars)
-```
-These are the variables which have survived the collinearity test and can now be potentially included in the SDM model.
 
 ## Fitting GLM and GAM
 
@@ -748,13 +743,13 @@ print(formula_gam)
 Using the selected predictors in a GLM:
 ```{r}
 # Fit GLM (logistic regression)
-glm_sdm <- glm(formula_glm, data = sdm_data_uncor, family = binomial(link = "logit"))
+glm_sdm <- glm(formula_glm, data = sdm_data, family = binomial(link = "logit"))
 summary(glm_sdm)
 ```
 
 ```{r}
 # Fit GAM (using mgcv, which correctly handles smooth terms in predict)
-gam_sdm <- mgcv::gam(formula_gam, data = sdm_data_uncor, family = binomial(link = "logit"))
+gam_sdm <- mgcv::gam(formula_gam, data = sdm_data, family = binomial(link = "logit"))
 summary(gam_sdm)
 ```
 
