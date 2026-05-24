@@ -50,3 +50,6 @@ rsconnect/
 raw_data/bio03_australia_2071-2100.tif
 raw_data/bio07_australia_2071-2100.tif
 raw_data/Unconfirmed 983514.crdownload
+geodata/soil_world/clay_15-30cm_mean_30s.tif
+geodata/soil_world/phh2o_15-30cm_mean_30s.tif
+geodata/soil_world/soc_15-30cm_mean_30s.tif

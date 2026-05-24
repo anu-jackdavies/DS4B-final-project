@@ -569,42 +569,58 @@ This is 10x better resolution (30 arcseconds, around 1km resolution). The reason
 
 ### Load useful soil variables
 
-Soil is a key area we've been instructed to investigate, with some recommended sources. Claude helped me find a way to get data from the Soil and Landscape Grid of Australia (SLGA) which I was struggling to obtain myself:
-```{r}
-#remotes::install_github("AusSoilsDSM/SLGACloud")
-library(SLGACloud)
-# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
-```
+Soil is a key area we've been instructed to investigate, with some recommended sources.
 
 This page is where the data can be looked at or accessed manually if you wish: https://esoil.io/TERNLandscapes/Public/Pages/SLGA/GetData-COGSDataStore.html
 
+E. decipiens grows in clay, loam or sandy soils, and grow over laterite.
+https://www.inaturalist.org/taxa/602566-Eucalyptus-decipiens
 
-I found quite a few soil-related variables from the SLGA metadata which I will now import:
+Studies have shown that lateritic soils tend to have low soil organic carbon (SOC), which is a useful soil variable from SLGA that I can include (Sow and Kundu, 2020).
+https://doi.org/10.22271/chemi.2020.v8.i3al.9611
+
+Considering my research and the available variables, I'll include clay, soil organic carbon, and soil ph. These may be reduced later in model selection.
+
+Importing the soil variables from soilworld:
+
 ```{r}
-soil_asc <-  cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_ASC.tif')
-soil_atlas     <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Atlas.tif')
+library(geodata)
+library(terra)
+
+geodata_path("geodata")
+
+clay <- soil_world(var = "clay", depth = 30, stat = "mean")
+soc  <- soil_world(var = "soc", depth = 30, stat = "mean")
+ph   <- soil_world(var = "phh2o", depth = 30, stat = "mean")
+
+# Assisted with ChatGPT - scroll to very bottom for this, since trying to use SLGA before was catastrophic and lengthy: https://chatgpt.com/share/6a0fe8c8-bd28-83ec-8bd8-ea7dfd13b5c0
+```
+
+
+I did find some other covariates to use:
+
 soil_illite    <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Illite.tif')
 soil_kaolinite <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Kaolinite.tif')
 soil_smectite  <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Smectite.tif')
-# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
-```
+ done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
 
-Note there were some soil moisture variables, but I didn't include them since their data was exclusively for 2015-2020, which doesn't line up with the 1981-2010 data of the bioclim variables at all.
+
 
 Cropping soil variable data to the buffer area from background points:
 ```{r}
-soil_illite_crop    <- crop(soil_illite,    buffer_vect)
-soil_kaolinite_crop <- crop(soil_kaolinite, buffer_vect)
-soil_smectite_crop  <- crop(soil_smectite,  buffer_vect)
+clay_crop           <- crop(clay,    buffer_vect)
+soc_crop    <- crop(soc,    buffer_vect)
+ph_crop <- crop(ph, buffer_vect)
 # done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
 ```
 
 
 Getting the soil variables to match CHELSA bioclim resolution:
 ```{r}
-soil_illite_crop    <- resample(soil_illite_crop,    bioclim_chelsa)
-soil_kaolinite_crop <- resample(soil_kaolinite_crop, bioclim_chelsa)
-soil_smectite_crop  <- resample(soil_smectite_crop,  bioclim_chelsa)
+clay_crop           <- resample(clay_crop,    bioclim_chelsa)
+soc_crop    <- resample(soc_crop,    bioclim_chelsa)
+ph_crop <- resample(ph_crop, bioclim_chelsa)
+
 # done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
 ```
 
@@ -626,7 +642,7 @@ library(caret)
 bio_cols <- grep("^Bio", colnames(sdm_data), value = TRUE)
 correlation_matrix <- cor(sdm_data[, bio_cols], use = "complete.obs")
 
-correlated <- findCorrelation(correlation_matrix, cutoff = 0.7)  # |r| > 0.7
+correlated <- findCorrelation(correlation_matrix, cutoff = 0.8)  # |r| > 0.7
 names_correlated <- bio_cols[correlated]
 ```
 
@@ -975,7 +991,7 @@ ggplot() +
   scale_colour_manual(
     name = NULL,
     values = c("IUCN Range" = "darkgreen",
-               "Alpha Hull" = "cyan2",
+               "95% Alpha Hull" = "cyan2",
                "Occurrences" = "blue")
   ) +
   labs(title = "E. decipiens GAM Suitability, IUCN Range & Alpha Hull",
@@ -1000,14 +1016,19 @@ Considering the tracking of current policies compared to the pledged policies sh
 Hausfather et. al (2022) warns that the CMIP6 GCMs can be highly-sensitive and a "hot-model" which projects extreme temperature increase of 5+ degrees regularly due to noise/variation influencing the mean per month/year etc. The paper discusses how the IUCN's AR6 report excluded the "too-hot" models from CMIP6 to avoid over sensitivity and get a realistic projection, instead of opting for the older CMIP5. I will opt to use CMIP6 but filter to only use GCMs for the 'likely' +2.5-4 degree range to get a realistic AR6 like projection (Hausfather et. al, 2022).
 
 
-### Import CHELSA SSP data
-In CHELSA, the SSP options are only SSP1 - 2.6, SSP3 - 7.0 and SSP5 - 8.5. I'll choose SSP3 as this is between the SSP2 and SSP4 options I thought would be good before.
+### Import CHELSA GCM/SSP data
+
+There are 5 GCM options which are all CMIP 6 models.
+I will choose to use MPI-ESM1-2-HR GCM, since this has a 3 degree sensitivity which fits well with my prior discussion.
+https://doi.org/10.1029/2017MS001217
+
+Within this in CHELSA, the SSP options are only SSP1 - 2.6, SSP3 - 7.0 and SSP5 - 8.5. I'll choose SSP3 as this is between the SSP2 and SSP4 options I thought would be good before.
 
 Getting Bioclim variables which were in my SDM model:
 Bio3 (isothermality)
 ```{r}
 
-url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio03/2071-2100/IPSL-CM6A-LR/ssp370/CHELSA_ipsl-cm6a-lr_ssp370_bio03_2071-2100_V.2.1.tif"
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio03/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio03_2071-2100_V.2.1.tif"
 
 bio3_fut <- rast(url)
 
@@ -1023,7 +1044,7 @@ writeRaster(bio03_fut_crop, "raw_data/bio03_australia_2071-2100.tif", overwrite 
 Bio19 (mean monthly precip in coldest quarter)
 ```{r}
 
-url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio19/2071-2100/IPSL-CM6A-LR/ssp370/CHELSA_ipsl-cm6a-lr_ssp370_bio19_2071-2100_V.2.1.tif"
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio19/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio19_2071-2100_V.2.1.tif"
 
 bio19_fut <- rast(url)
 
@@ -1036,7 +1057,7 @@ writeRaster(bio19_fut_crop, "raw_data/bio19_australia_2071-2100.tif", overwrite 
 
 Bio7 (Annual daily mean near-surface temperature range)
 ```{r}
-url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio07/2071-2100/IPSL-CM6A-LR/ssp370/CHELSA_ipsl-cm6a-lr_ssp370_bio07_2071-2100_V.2.1.tif"
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio07/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio07_2071-2100_V.2.1.tif"
 
 bio07_fut <- rast(url)
 
@@ -1066,5 +1087,55 @@ I can use the predict() function instead of having to refit the entire SDM:
 names(future_stack) <- names(selected_predictors)
 
 fut_pred <- predict(future_stack, gam_sdm, fun = predict, type = "response")
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+Thresholding:
+```{r}
+fut_pred_bin <- fut_pred > pred_gam_threshold
+```
+
+Creating combined layer for suitability (now can make different colours on map for no suitablity, only for current, only for 2100 or both!)
+```{r}
+# 0 = unsuitable, 1 = current only, 2 = future only, 3 = both
+combined <- pred_gam_bin + fut_pred_bin * 2  # gives 0,1,2,3
+combined <- as.factor(combined)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+## 2100 Prediction Plot
+```{r}
+ggplot() +
+  geom_spatraster(data = combined) +
+  scale_fill_manual(
+    values = c(
+      "0" = "#FFFDD6",   # unsuitable
+      "1" = "#4DAF4A",   # current only
+      "2" = "#E07B3F",   # future only (orange)
+      "3" = "hotpink"    # both (same as current, or pick a different colour)
+    ),
+    na.value = "transparent",
+    na.translate = FALSE,
+    name = "Suitability",
+    labels = c("0" = "Unsuitable", "1" = "Current only",
+               "2" = "Future only (2100)", "3" = "Current & Future")
+  ) +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.73) +
+  geom_sf(data = hull_sf, aes(colour = "Alpha Hull"), fill = NA,
+          linewidth = 0.7) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "Alpha Hull" = "cyan2",
+               "Occurrences" = "blue")
+  ) +
+  labs(title = "E. decipiens GAM Suitability — Current vs 2100 (SSP370)",
+       x = "Longitude", y = "Latitude") +
+  theme_minimal()
 ```
 
