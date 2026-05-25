@@ -582,7 +582,6 @@ https://doi.org/10.22271/chemi.2020.v8.i3al.9611
 Considering my research and the available variables, I'll include clay, soil organic carbon, and soil ph. These may be reduced later in model selection.
 
 Importing the soil variables from soilworld:
-
 ```{r}
 library(geodata)
 library(terra)
@@ -595,15 +594,6 @@ ph   <- soil_world(var = "phh2o", depth = 30, stat = "mean")
 
 # Assisted with ChatGPT - scroll to very bottom for this, since trying to use SLGA before was catastrophic and lengthy: https://chatgpt.com/share/6a0fe8c8-bd28-83ec-8bd8-ea7dfd13b5c0
 ```
-
-
-I did find some other covariates to use:
-
-soil_illite    <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Illite.tif')
-soil_kaolinite <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Kaolinite.tif')
-soil_smectite  <- cogLoad('https://esoil.io/TERNLandscapes/Public/Products/TERN/Covariates/Mosaics/90m/Soil_Smectite.tif')
- done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
-
 
 
 Cropping soil variable data to the buffer area from background points:
@@ -837,7 +827,7 @@ par(mfrow = c(1, 2))
 plot(glm_eval, "ROC")
 plot(gam_eval, "ROC")
 ```
-According to Lecture 8, AUC of 1 is perfect and around 0.8 is indicative of a reasonable SDM. The GAM AUC of 0.872 is quite good therefore.
+According to Lecture 8, AUC of 1 is perfect and around 0.8 is indicative of a reasonable SDM. The GAM AUC of 0.893 is quite good therefore.
 
 # Plot the SDM
 

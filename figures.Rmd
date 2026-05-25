@@ -17,3 +17,1009 @@ output:
 ## Location on Github
 
 https://github.com/anu-jackdavies/DS4B-final-project
+
+**Disclaimers**
+This file contains all the code from my EDA that is necessary to make relevant figures.
+It also includes discussion of my process, the research and references used to make decisions.
+This should give good insight and justification of the work I have done.
+Many of the code chunks are copied or adapted from the Weeks 7-9 Workshops, which I cannot explicitly reference with a link but have acknowledged each time I used them in this file.
+All chunks made with AI help have been referenced with conversation links included, and other sites/references have links and DOIs included where possible.
+
+### Loading packages to be used:
+
+```{r}
+# Most but not necessarily all of these are used in this file, but they were in EDA so I'm copying them across to be safe.
+library(galah)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(readr)
+library(readxl)
+library(janitor)
+library(purrr)
+library(sf)  
+library(ozmaps)
+library(here) 
+library(ggpointdensity)
+library(viridis)
+library(CoordinateCleaner)
+library(raster) 
+library(terra)
+library(skimr)
+library(leaflet)
+library(geodata)
+library(caret)
+library(dismo)
+library(patchwork)
+library(tidyterra)
+library(rangeBuilder)
+```
+
+
+### Load occurrence data, IUCN range
+
+Using galah_call to get ALA occurrence data for *Eucalyptus decipiens*:
+```{r}
+galah_config(email = "iamjackdavies@gmail.com")
+decipiens <- galah_call() %>% 
+  identify("Eucalyptus decipiens") %>% 
+  atlas_occurrences()
+```
+
+Importing IUCN expert range map data for *E. decipiens*:
+```{r}
+IUCN_map <- st_read("raw_data/Eucalyptus_decipiens.gpkg")
+```
+
+can be used to add the IUCN expert range spatial polygon.
+
+# Clean occurrence data
+
+Plotting all data prior to cleaning:
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3')
+```
+Some clear Eastern Australian outliers plus a misinput coordinate, potentially could have flipped latitude?
+
+
+Visualising overlapping observations like in Week 9 workshop:
+
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+
+Two key clusters are present in and around Perth (largest group, likely biased to some extent due to population, Wallacean bias), and in the southeast corner of the expert range which is overlaid in the next plot.
+
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3') +
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F")
+```
+
+### Remove occurrences with NA coordinates
+
+```{r}
+decipiens_clean <- decipiens %>% 
+  filter(!is.na(decimalLatitude),
+                !is.na(decimalLongitude)
+  )
+```
+
+### Remove preserved specimens
+
+Note the ALA occurrence data I fetched filtered out cultivated plants already which is good, but preserved specimens were still on here. Getting rid of these is an easy way to filter out many points which don't effectively represent the true habitat of *E. decipiens*.
+
+```{r}
+decipiens_clean <- decipiens_clean %>% 
+  filter(!basisOfRecord == 'PRESERVED_SPECIMEN')
+```
+
+This step single-handedly reduced data from 552 to 186 observations, great!
+
+### Analyse map, clustered observations
+
+```{r}
+aus <- ozmaps::ozmap_country
+
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_point(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude),
+             colour = 'olivedrab3') +
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.4)
+```
+
+Zoom in plus with overlapping observations:
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) + 
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.2) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+
+Looking on Google Maps, the large cluster is indeed around Perth, especially north of Perth where there is more forest and less urban sprawl. For example the Gangara-Moore River State forest has coords around -31.5, 116 which lines up with high clustering of E. decipiens occurrence records. 
+
+https://www.google.com/maps/@-31.5593691,115.8296231,25841m/data=!3m1!1e3?entry=ttu&g_ep=EgoyMDI2MDUxMi4wIKXMDSoASAFQAw%3D%3D
+
+
+I also noticed the other, less prominent cluster has many points in and around Stirling National Park.
+
+https://www.google.com/maps/@-34.3899856,117.3228533,196844m/data=!3m1!1e3?entry=ttu&g_ep=EgoyMDI2MDUxMi4wIKXMDSoASAFQAw%3D%3D
+
+It is my suspicion that there are far more E. decipiens out there in the other forest areas that are less visited by humans, and these clusters are primarily the result of bias towards more populated/visited areas, parks and roads.
+
+### Remove Undated entries
+
+Some of the entries have NA occurrence date. Since later on I will be projecting the SDM into the future (2100), I can't rely on undated occurrences to build or project the model. This is because if I don't know what date the occurrence is from, how can I know how it's position might change over time?
+
+```{r}
+decipiens_clean <- decipiens_clean %>% 
+  filter(!is.na(eventDate))
+```
+
+Visualise now:
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) + 
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.2) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+
+## Investigate outliers
+
+Before fitting my SDM I want to investigate the two easternmost points and the two northernmost points since they are either far out of the expert range or otherwise distant from other occurrences.
+
+### Eastern Points
+The easternmost point is from PlantBank Records and recorded by Donald F. Blaxell in 1986, a reputable botanist with an interest in Eucalyptus. 
+https://www.anbg.gov.au/biography/blaxell-donald-frederick.html
+
+The ALA page for the occurrence also shows no obvious signs of irregularity compared to other E. decipiens observations so I'll keep this observation.
+https://biocache.ala.org.au/occurrences/72b4f887-718f-433b-ba49-865a90d017eb
+
+The other eastern point is from the Salinity Action Plan Flora Survey in 1999.
+It has good info available on the ALA page and it was recorded by members of the Department of Conservation and Land Management (M N Lyons and S D Lyons), so I will keep it in the dataset too.
+https://biocache.ala.org.au/occurrences/d63a3a75-e955-412e-83b6-302a712695aa
+https://researchdata.edu.au/salinity-action-plan-flora-survey/3877978
+
+
+Issue with Eastern points! French et. al (2012) stated that E. decipiens intergrades with another species E. obesa and then that intergrades with E. adesmophloia at the northern slopes of the Stirling range and the eastern-adjacent plain respectively. This is shown with a map that makes it likely that the older (1986 and 1999) observations are likely from one of these other related species and were mislabelled as E. decipiens prior to the knowledge by French et. al (2012).
+https://florabase.dbca.wa.gov.au/science/nuytsia/653.pdf (see page 37)
+
+I have retroactively decided to remove these observations due to this discovery of potential species misidentification.
+
+```{r}
+decipiens_clean <- decipiens_clean %>% 
+  filter(decimalLongitude < 119)
+```
+
+### Northern points
+Northernmost point:
+Collected then recorded on iNaturalist by Dean Nicolle in 2010, a leading expert in eucalyptus botany. It has plenty of information on ALA including that it is wild, not cultivated. For these reasons the data point is reputable and it will be included. The fact it was by Nicolle may have influenced the IUCN experts to make their range wrap around this point too.
+https://biocache.ala.org.au/occurrences/fc615d1b-3c6f-48fb-9a9c-0440304758c1
+https://www.anbg.gov.au/biography/nicolle-dean.html
+
+Second northern point:
+Identified by Dean Nicolle again in 2024 using iNaturalist, collector/user is Malcolm Simard, a non-professional but likely accompanied by Nicolle. The observation is labelled as research grade by ALA and was overseen by an expert so I will include it in my data.
+https://biocache.ala.org.au/occurrences/a47f74ac-9bdc-4987-b933-b6b8a6bef9a3
+
+
+
+
+### Final check with coordinate cleaner:
+This is a useful tool from Dax's book to identify any further points for removal.
+```{r}
+library(CoordinateCleaner)
+
+# Run record-level tests
+coordinate_tests <- clean_coordinates(x = decipiens_clean, 
+                                      species = "scientificName")
+summary(coordinate_tests)
+```
+
+
+# Assess whether expert range map should be changed
+
+Considering the data cleaning I have performed, I do believe the IUCN expert range map should be slightly modified.
+
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) + 
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.2) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+
+However, the extent to which it should be changed is dependent on interpretation, the approaches I am considering are:
+
+a) Adjust the range to include all of the clean data points i.e. more east to cover Stirling Range, cover second northern point.
+
+b) Make only slight shifts to the expert range map to better reflect the clean data I've chosen to use, but not having to cover every single occurrence point e.g. cutting certain parts inwards to remove blank space without observations in my data and not forcing range to go as far east or cover either of the northernmost points if the model decides against it.
+
+The process of building an SDM will help validate/change these approach ideas.
+
+# Build SDM for E. decipiens suitable climate space
+
+## Background Points
+
+Of the four main strategies for choosing background points, I believe that accessible area is the clear candidate for E. decipiens. This is because as with most/all eucalypts, they are unlikely to disperse very far at all, with Booth (2017) presenting a typical seed dispersal limit of around 5km until 2085 across over 600 eucalypts. Booth also suggests most species are expected to disperse far less than that, often around only 30-50m per year.
+https://doi.org/10.1071/BT17019
+
+Environmental envelope would ignore the incapability of far-reaching dispersal for E. decipiens, while the other two methods sample across all of Australia which would not be appropriate for this data which is localised to the corner of Western Australia. Hence, I will be using the accessible area background points approach.
+
+### Load BIOCLIM raster
+To set up background points, I need to load the bioclim raster which contains the 19 bioclim variables from CHELSA v2.1 BIOCLIM, as 'bioclim_data' is needed in the code chunk. This is the data given to us from the Week 8 workshop.
+
+```{r}
+bioclim_data <- rast("raw_data/worldclim_australia.tif")
+```
+
+Pruning data to one point per grid cell, using Alex's week 8 workshop code:
+```{r}
+# prune data to one point per grid cell
+# Create SpatVector
+occ_v <- vect(decipiens_clean, geom = c("decimalLongitude", "decimalLatitude"), crs = crs(bioclim_data))
+
+# Get raster cell IDs
+occ_v$cell_id <- cellFromXY(bioclim_data, crds(occ_v))
+
+# Keep one point per raster cell
+occ_pruned <- occ_v[!duplicated(occ_v$cell_id), ]
+
+# Extract climate
+occ_env <- terra::extract(
+  bioclim_data,
+  occ_pruned,
+  ID = FALSE
+) |> 
+  as_tibble()
+
+occ_model <- bind_cols(
+  as_tibble(crds(occ_pruned)) |> 
+    setNames(c("longitude", "latitude")),
+  occ_env
+) |> 
+  mutate(presence = 1)
+```
+
+Now I can use more code from the week 8 workshop to make the accessible area background points.
+
+```{r}
+# Convert occurrence data to sf object (needed for spatial operations)
+occ_sf <- st_as_sf(decipiens_clean, coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
+
+occ_proj <- st_transform(occ_sf, 3577)
+
+buffer <- st_buffer(occ_proj, dist = 50000) |> #IMPORTANT - Buffer choice of 50km
+  st_union()
+
+buffer_vect <- vect(st_transform(buffer, 4326))
+
+bg <- spatSample(
+  mask(bioclim_data, buffer_vect),
+  size = 5000,
+  method = "random",
+  na.rm = TRUE,
+  as.points = TRUE
+)
+
+bg_env <- terra::extract(bioclim_data, bg, ID = FALSE) |>
+  as_tibble()
+
+bg_model <- bind_cols(
+  st_coordinates(st_as_sf(bg)) |>
+    as_tibble() |>
+    rename(longitude = X, latitude = Y),
+  bg_env
+) |>
+  mutate(presence = 0)
+```
+
+I chose to implement a 50km buffer somewhat arbitrarily, as an approximation or guess of where more unobserved *E. decipiens* occurrences could feasibly be without being recorded yet. I tested larger and smaller values, but too large meant the background points covered the whole southwestern corner of WA (not terrible but unnecessary) and too small left gaps between known observations which I think could contain legitimate observations.
+
+### Plotting Background points on map
+
+```{r}
+leaflet() |>
+  addProviderTiles(providers$OpenStreetMap.Mapnik) |>
+
+  # Add a climate raster layer (e.g. Bio01)
+  addRasterImage(raster::raster(bioclim_data$Bio01), opacity = 0.5) |>
+
+  # Plot background points in grey
+  addCircleMarkers(
+    data = bg_model,
+    lng = ~longitude, lat = ~latitude,
+    radius = 3,
+    fillOpacity = 0.4,
+    stroke = FALSE,
+    color = "grey"
+  ) |>
+
+  # Plot occurrence points in blue on top
+  addCircleMarkers(
+    data = occ_model,
+    lng = ~longitude, lat = ~latitude,
+    radius = 5,
+    fillOpacity = 0.7,
+    stroke = FALSE,
+    color = "#2C7FB8"
+  )
+```
+
+## Load CHELSA V2.1 historical bioclim variables
+
+The current 'bioclim_data' has a low resolution:
+```{r}
+res(bioclim_data)
+# about 9km according to Claude https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+and seems to be from worldclim not CHELSA V2.1 bioclim. Because of this I'll make sure to import the higher res CHELSA bioclim variables now:
+
+```{r}
+if (!file.exists("raw_data/chelsa_bioclim_cropped.tif")) {
+  bioclim_chelsa <- lapply(1:19, function(i) {
+    url <- paste0("/vsicurl/https://os.zhdk.cloud.switch.ch/chelsav2/GLOBAL/climatologies/1981-2010/bio/CHELSA_bio",
+                  i, "_1981-2010_V.2.1.tif")
+    message("Loading and cropping bio", i, "...")
+    crop(rast(url), buffer_vect)
+  }) |> rast()
+  writeRaster(bioclim_chelsa, "raw_data/chelsa_bioclim_cropped.tif", overwrite = TRUE)
+}
+
+bioclim_chelsa <- rast("raw_data/chelsa_bioclim_cropped.tif")
+# made with Claude asssistance to load variables without requiring physical download
+# https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+The above chunk may take a long time to load the data, so I've used the if condition such that if you download 'chelsa_bioclim_cropped.tif', you can skip the long part saving time on knitting.
+
+```{r}
+res(bioclim_chelsa)
+```
+This is 10x better resolution (30 arcseconds, around 1km resolution). The reason I went through this is because the soil variables used below have 90m resolution, so having to downscale it less will be better for model fitting (aka I've tried to minimise gap in resolutions so scaling down soil variable res won't be amplifying as much noise)
+
+## Load useful soil variables
+
+Summary of my research into *E. decipiens* and soil variables:
+
+*E. decipiens* grows in clay, loam or sandy soils, and grow over laterite.
+https://www.inaturalist.org/taxa/602566-Eucalyptus-decipiens
+
+Studies have shown that lateritic soils tend to have low soil organic carbon (SOC), which is a useful soil variable from SLGA that I can include (Sow and Kundu, 2020).
+https://doi.org/10.22271/chemi.2020.v8.i3al.9611
+
+Considering my research and the available variables, I'll include clay, soil organic carbon, and soil pH. These may be reduced later in model selection.
+
+### Importing Soil Data using soilworld:
+https://www.rdocumentation.org/packages/geodata/versions/0.6-6/topics/soil_world
+
+```{r}
+library(geodata)
+library(terra)
+
+geodata_path("geodata")
+
+clay <- soil_world(var = "clay", depth = 30, stat = "mean")
+soc  <- soil_world(var = "soc", depth = 30, stat = "mean")
+ph   <- soil_world(var = "phh2o", depth = 30, stat = "mean")
+
+# Assisted with ChatGPT - scroll to very bottom for this, since trying to use SLGA before was catastrophic and lengthy due to their website crahsing: https://chatgpt.com/share/6a0fe8c8-bd28-83ec-8bd8-ea7dfd13b5c0
+```
+
+I found other covariates on SLGA but due to website unreliance and availability issues I opted to include these simple and biologically interpretable soilworld variables.
+
+Cropping soil variable data to the buffer area from background points:
+```{r}
+clay_crop           <- crop(clay,    buffer_vect)
+soc_crop    <- crop(soc,    buffer_vect)
+ph_crop <- crop(ph, buffer_vect)
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+This is because we need to sample data within the accessible area for use in this SDM, not everywhere the data exists.
+
+
+Getting the soil variables to match CHELSA V2.1 BIOCLIM resolution:
+```{r}
+clay_crop           <- resample(clay_crop,    bioclim_chelsa)
+soc_crop    <- resample(soc_crop,    bioclim_chelsa)
+ph_crop <- resample(ph_crop, bioclim_chelsa)
+
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+Ensures data lines up well and there isn't 10x more soil data compared to BIOCLIM data.
+
+## Model Selection
+
+Adapting the code I used in the Week 8 workshop to filter out BIOCLIM variables with strong correlations to others:
+
+```{r}
+sdm_data <- bind_rows(occ_model, bg_model)
+```
+
+Check for BIOCLIM collinearity:
+```{r}
+bio_cols <- grep("^Bio", colnames(sdm_data), value = TRUE)
+correlation_matrix <- cor(sdm_data[, bio_cols], use = "complete.obs")
+
+correlated <- findCorrelation(correlation_matrix, cutoff = 0.7)  # |r| > 0.7
+names_correlated <- bio_cols[correlated]
+```
+
+```{r}
+# Remove highly correlated variables
+sdm_data_uncor <- sdm_data[, !colnames(sdm_data) %in% names_correlated]
+
+# Keep track of predictors
+predictor_vars <- grep("^Bio", colnames(sdm_data_uncor), value = TRUE)
+print(predictor_vars)
+```
+
+Mean Daily Mean Near-Surface Air Temperature of the coldest Quarter (bio11),
+Mean Monthly Precipitation of the Warmest Quarter (bio18),
+Mean Monthly Precipitation of the Coldest Quarter (bio19),
+Isothermality (bio03),
+Annual Daily Mean Near-Surface Air Temperature Range (bio07) remain.
+
+I want to include another temperature variable, not just isothermality or range. Since there are two precipitation variables looking at hot vs cold conditions, I feel it would be wise to include a temperature variable for hot and cold conditions too. I'll choose to include bio05, the Mean Daily Maximum Near-Surface Air Temperature of the Warmest Month as it will test how E. decipiens can cope with hot desert climates near its current distribution, and will be good for assessing future ranges as temperatures increase.
+
+```{r}
+predictor_vars <- c(predictor_vars, names(sdm_data["Bio05"]))
+sdm_data_uncor <- c(sdm_data_uncor, names(sdm_data["Bio05"]))
+```
+
+Now I'll group in the soil variables:
+```{r}
+selected_predictors <- c(
+  bioclim_chelsa[[c("CHELSA_bio11_1981-2010_V.2.1",
+                    "CHELSA_bio18_1981-2010_V.2.1",
+                    "CHELSA_bio19_1981-2010_V.2.1",
+                    "CHELSA_bio3_1981-2010_V.2.1",
+                    "CHELSA_bio7_1981-2010_V.2.1",
+                    "CHELSA_bio5_1981-2010_V.2.1")]],
+  clay_crop,
+  soc_crop,
+  ph_crop
+)
+
+names(selected_predictors) <- c("Bio11", "Bio18", "Bio19", "Bio03", "Bio07", "Bio05", "Clay", "SOC", "pH")
+# done with Claude help: https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+Updating SDM data with soil variables included:
+```{r}
+occ_env <- terra::extract(
+  selected_predictors,
+  occ_pruned,
+  ID = FALSE
+) |> 
+  as_tibble()
+
+occ_model <- bind_cols(
+  as_tibble(crds(occ_pruned)) |> 
+    setNames(c("longitude", "latitude")),
+  occ_env
+) |> 
+  mutate(presence = 1)
+
+bg_env <- terra::extract(selected_predictors, bg, ID = FALSE) |>
+  as_tibble()
+
+bg_model <- bind_cols(
+  st_coordinates(st_as_sf(bg)) |>
+    as_tibble() |>
+    rename(longitude = X, latitude = Y),
+  bg_env
+) |>
+  mutate(presence = 0)
+
+sdm_data <- bind_rows(occ_model, bg_model)
+# Advice on how to tweak code here from Claude https://claude.ai/share/ec09d26e-7d80-4b1b-aa6f-923c79ade46a
+```
+
+Update predictors too:
+```{r}
+predictor_vars <- c("Bio11", "Bio18", "Bio19", "Bio03", "Bio07", "Bio05", "Clay", "SOC", "pH")
+```
+
+## Fitting GLM and GAM
+
+Note that I also continue model selection here, making changes depending on how the model fits.
+
+Following the week 8 workshop process:
+```{r}
+# GLM: linear model
+formula_glm <- formula(paste0("presence ~ ", paste0(predictor_vars, collapse = " + ")))
+
+# GAM: non-linear model with splines (k = basis dimension, controls wiggliness)
+formula_gam <- formula(paste0("presence ~ ", paste0("s(", predictor_vars,", k = 4)", collapse = " + ")))
+
+# Inspect formulas
+print(formula_glm)
+
+print(formula_gam)
+```
+
+Using the selected predictors in a GLM and a GAM:
+```{r}
+# Fit GLM (logistic regression)
+glm_sdm <- glm(formula_glm, data = sdm_data, family = binomial(link = "logit"))
+summary(glm_sdm)
+```
+
+```{r}
+# Fit GAM (using mgcv, which correctly handles smooth terms in predict)
+gam_sdm <- mgcv::gam(formula_gam, data = sdm_data, family = binomial(link = "logit"))
+summary(gam_sdm)
+```
+
+```{r}
+gam_sdm$aic
+```
+
+
+### Model Assessment, removal of variables
+
+Looking at potential variable removal, the GLM suggests many variables aren't significant, with particular doubts on Bio11 (Mean Daily Mean Near-Surface Air Temperature of the Quarter), Bio07 (Annual Daily Mean Near-Surface Air Temperature Range), Bio05 (Mean Daily Maximum Near-Surface Air Temperature of the Warmest Month) and soil pH.
+
+The GAM summary changes the overall picture. Variables which are still have p-values well over 0.05 are strong candidates for removal, these being Bio07, pH. Some of the other doubtful variables are far more significant than in GLM like Bio05 and Bio11, suggesting they do explain variation in presence to a significant level, just non-linearly. Clay is far closer to the 0.05 cutoff under GAM than in GLM so I won't remove it yet, while SOC is actually less significant under the GAM, indicating there could be a linear association where more SOC means greater habitat suitability without non-linear nuances.
+
+Note that GAM has lower AIC and better deviance explained than GLM, indicating better model fit. Also note I tried fitting GAM with different k-values but k = 4 worked the best (had more significant variables).
+
+So, I'll remove Bio07, pH. I also will remove Bio18 since Bio18 and Bio19 are both precipitation measures just in different quarters, and of those two Bio19 was more significant.
+
+```{r}
+sdm_data <- dplyr::select(sdm_data, -Bio07, -pH)
+predictor_vars <- predictor_vars[!predictor_vars %in% c("Bio07", "pH")]
+
+# made with Claude help https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+### Refitting models
+```{r}
+# GLM: linear model
+formula_glm <- formula(paste0("presence ~ ", paste0(predictor_vars, collapse = " + ")))
+
+# GAM: non-linear model with splines (k = basis dimension, controls wiggliness)
+formula_gam <- formula(paste0("presence ~ ", paste0("s(", predictor_vars,", k = 4)", collapse = " + ")))
+
+# Inspect formulas
+print(formula_glm)
+
+print(formula_gam)
+```
+
+```{r}
+# Fit GLM (logistic regression)
+glm_sdm <- glm(formula_glm, data = sdm_data, family = binomial(link = "logit"))
+summary(glm_sdm)
+```
+
+```{r}
+# Fit GAM (using mgcv, which correctly handles smooth terms in predict)
+gam_sdm <- mgcv::gam(formula_gam, data = sdm_data, family = binomial(link = "logit"))
+summary(gam_sdm)
+```
+
+### Model Assessment ii), justification of chosen model
+The deviance explained and adjusted R^2 have ever so slightly reduced and AIC increased after dropping Bio07 and pH but this is not of major concern due to the benefit of a more simple model for the SDM. Note I considered dropping Bio18 since 18 and 19 are both precipitation variables and Bio19 was more significant, but actually this model does better than one without Bio18 and the two of those variables have a significant impact on presence in their own right whilst passing the 0.7 correlation cutoff earlier.
+
+While Clay and SOC are not statistically significant model inclusions they aren't far from it, and I would like to include soil components into the SDM as I believe it to be an important biological aspect to consider for habitat suitability.
+
+Update predictors with removals for later use:
+```{r}
+selected_predictors <- selected_predictors[[names(selected_predictors)[!names(selected_predictors) %in% c("Bio07", "pH")]]]
+
+# Made with Claude assistance: https://claude.ai/share/f4531869-870a-4c7f-ba27-5ee61fcf997a
+```
+
+### AUC examination
+Checking out AUC as I have in Week 8:
+```{r}
+# Split presence and background, drop rows with missing predictors so
+# predict() returns a clean, matching-length vector.
+p <- na.omit(sdm_data[sdm_data$presence == 1, ])
+a <- na.omit(sdm_data[sdm_data$presence == 0, ])
+
+# Get predicted suitability for presence and background points separately, and
+# strip dims/names with as.numeric() so dismo::evaluate() recognises them as
+# plain vectors (predict.gam returns a 1-D array, which dismo misinterprets).
+glm_pred_p <- as.numeric(predict(glm_sdm, newdata = p, type = "response"))
+glm_pred_a <- as.numeric(predict(glm_sdm, newdata = a, type = "response"))
+gam_pred_p <- as.numeric(predict(gam_sdm, newdata = p, type = "response"))
+gam_pred_a <- as.numeric(predict(gam_sdm, newdata = a, type = "response"))
+
+# Evaluate models using the predicted values directly.
+# evaluate() returns an S4 object — use @ (not $) to access slots, e.g. glm_eval@auc
+glm_eval <- evaluate(p = glm_pred_p, a = glm_pred_a)
+gam_eval <- evaluate(p = gam_pred_p, a = gam_pred_a)
+
+# Plot ROC curves
+par(mfrow = c(1, 2))
+plot(glm_eval, "ROC")
+plot(gam_eval, "ROC")
+```
+
+According to Lecture 8, AUC of 1 is perfect and around 0.8 is indicative of a reasonable SDM. The GAM AUC of 0.893 is quite good therefore.
+
+## Generating SDM predictions for current habitat suitability
+
+```{r}
+pred_glm <- terra::predict(selected_predictors, glm_sdm, type = "response")
+pred_gam <- terra::predict(selected_predictors, gam_sdm, type = "response")
+
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+Getting 95% alpha hull:
+```{r}
+hull <- getDynamicAlphaHull(
+  x = decipiens_clean[, c("decimalLongitude", "decimalLatitude")],
+  fraction = 0.95,
+  partCount = 1
+)
+hull_sf <- st_as_sf(hull[[1]])
+
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+As I'm working with geom sf and static plot not leaflet, I can't set the alpha value myself. Instead the code dynamically sets alpha such that the specific fraction of the occurrences are encompassed by the hull.
+
+GLM Plot:
+```{r}
+plot_glm <- ggplot() +
+  geom_spatraster(data = pred_glm) +
+  scale_fill_distiller(palette = "Spectral", na.value = "transparent",
+                       limits = c(0, 1), name = "Suitability") +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude),
+             colour = "pink", size = 0.8, alpha = 0.5) +
+  labs(title = "GLM Suitability") +
+  theme_minimal()
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+GAM plot:
+```{r}
+plot_gam <- ggplot() +
+  geom_spatraster(data = pred_gam) +
+  scale_fill_distiller(palette = "Spectral", na.value = "transparent",
+                       limits = c(0, 1), name = "Suitability") +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude),
+             colour = "pink", size = 0.8, alpha = 0.5) +
+  labs(title = "GAM Suitability") +
+  theme_minimal()
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+Alpha hull + expert range plot:
+```{r}
+p3 <- ggplot() +
+  geom_sf(data = IUCN_map, fill = "lightgreen", colour = "darkgreen",
+          alpha = 0.4, linewidth = 0.5) +
+  geom_sf(data = hull_sf, fill = "steelblue", colour = "steelblue",
+          alpha = 0.2, linewidth = 0.5, linetype = "dashed") +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude),
+             colour = "pink", size = 0.8, alpha = 0.5) +
+  labs(title = "Expert Range vs Alpha Hull") +
+  theme_minimal()
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+
+## SDM plots
+
+Combine all of the plots:
+```{r}
+plot_glm + plot_gam + p3 +
+  plot_layout(ncol = 3) +
+  plot_annotation(
+    title = "Eucalyptus decipiens — Habitat Suitability & Range Comparison",
+    theme = theme(plot.title = element_text(hjust = 0.5))
+  )
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+This AI-assisted framework is a bit visually messy. I want to focus on just using the GAM as it is the best model (shown by AUC and other model testing). Also, I'll tidy up the visuals.
+
+```{r}
+ggplot() +
+  geom_spatraster(data = pred_gam) +
+  scale_fill_distiller(palette = "Spectral", na.value = "transparent",
+                       limits = c(0, 1), name = "Suitability") +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.7) +
+  geom_sf(data = hull_sf, aes(colour = "Alpha Hull"), fill = NA,
+          linewidth = 0.7) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "Alpha Hull" = "aquamarine",
+               "Occurrences" = "hotpink")
+  ) +
+  labs(title = "E. decipiens GAM Suitability, IUCN Range & Alpha Hull",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
+# Made with Claude assistance, but primarily edited by me: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
+```
+
+Note: The reason for some white spots on the map is likely due to NA entries in the rasters for clay and SOC %. 
+
+### Thresholding suitability
+
+As done in week 8 workshop:
+```{r}
+pred_glm_threshold <- threshold(glm_eval, stat = "spec_sens")
+pred_gam_threshold <- threshold(gam_eval, stat = "spec_sens")
+
+pred_glm_bin <- pred_glm > pred_glm_threshold
+pred_gam_bin <- pred_gam > pred_gam_threshold
+```
+
+Making GAM vs hull vs expert range plot again with thresholding:
+```{r}
+ggplot() +
+  geom_spatraster(data = pred_gam_bin) +
+  scale_fill_manual(
+    values = c("FALSE" = "#FFFDD6", "TRUE" = "#4DAF4A"),
+    na.value = "transparent",
+    na.translate = FALSE,
+    name = "Suitability",
+    labels = c("FALSE" = "Unsuitable", "TRUE" = "Suitable")
+  ) +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.73) +
+  geom_sf(data = hull_sf, aes(colour = "95% Alpha Hull"), fill = NA,
+          linewidth = 0.7) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "95% Alpha Hull" = "cyan2",
+               "Occurrences" = "blue")
+  ) +
+  labs(title = "E. decipiens GAM Suitability, IUCN Range & Alpha Hull",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
+
+# Made with Claude assistance: https://claude.ai/share/af6e6c8c-0d2b-4f57-bf77-e20d32f3e46c
+```
+
+I am happy with this plot to use in the presentation and discuss it further.
+
+# Projecting Model to 2100
+
+In order to project the model to see how E. decipiens' suitable climate is predicted to change, I need to get some CHELSA V2.1 Bioclim variables for 2071-2100.
+
+To get the CHELSA 2071-2100 data, I need to determine which Global Climate Model (GCM) and Shared Socioeconomic Pathway (SSP) to select. 
+
+### Select SSP and GCM
+
+From reading Hausfather and Peters (2020), the choice of SSP depends on what I believe is a reasonable prediction of global warming up to 2100.
+Considering the tracking of current policies compared to the pledged policies shown in that paper, I have determined that a weak mitigation of global warming (+3 degrees by 2100) is probably most likely, while +2.5 degrees may be possible if the progress and policies improve. I'll therefore use SSP4 - 6.0 (+3 degrees) and then also test SSP2 - 4.5 (+2.5) to see how that changes my model projection.
+
+Hausfather et. al (2022) warns that the CMIP6 GCMs can be highly-sensitive and a "hot-model" which projects extreme temperature increase of 5+ degrees regularly due to noise/variation influencing the mean per month/year etc. The paper discusses how the IUCN's AR6 report excluded the "too-hot" models from CMIP6 to avoid over sensitivity and get a realistic projection, instead of opting for the older CMIP5. I will opt to use CMIP6 but filter to only use GCMs for the 'likely' +2.5-4 degree range to get a realistic AR6 like projection (Hausfather et. al, 2022).
+
+### Import CHELSA GCM/SSP data
+
+There are 5 GCM options which are all CMIP 6 models.
+I will choose to use MPI-ESM1-2-HR GCM, since this has a 3 degree sensitivity which fits well with my prior discussion.
+https://doi.org/10.1029/2017MS001217
+
+Within this in CHELSA, the SSP options are only SSP1 - 2.6, SSP3 - 7.0 and SSP5 - 8.5. I'll choose SSP3 as this is between the SSP2 and SSP4 options I thought would be good before.
+
+Getting Bioclim variables which were in my SDM model:
+
+Bio11 (mean daily mean surface temp of coldest quarter)
+```{r}
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio11/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio11_2071-2100_V.2.1.tif"
+
+bio11_fut <- rast(url)
+
+
+bio11_fut_crop <- crop(bio11_fut, buffer_vect)
+
+
+writeRaster(bio11_fut_crop, "raw_data/bio11_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+Bio18 (mean monthly precip in warmest quarter)
+```{r}
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio18/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio18_2071-2100_V.2.1.tif"
+
+bio18_fut <- rast(url)
+
+
+bio18_fut_crop <- crop(bio18_fut, buffer_vect)
+
+
+writeRaster(bio18_fut_crop, "raw_data/bio18_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+
+Bio19 (mean monthly precip in coldest quarter)
+```{r}
+
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio19/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio19_2071-2100_V.2.1.tif"
+
+bio19_fut <- rast(url)
+
+bio19_fut_crop <- crop(bio19_fut, buffer_vect)
+
+writeRaster(bio19_fut_crop, "raw_data/bio19_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+Bio03 (isothermality)
+```{r}
+
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio03/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio03_2071-2100_V.2.1.tif"
+
+bio3_fut <- rast(url)
+
+
+bio03_fut_crop <- crop(bio3_fut, buffer_vect)
+
+
+writeRaster(bio03_fut_crop, "raw_data/bio03_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+
+Bio05 (mean daily max air temp of warmest month)
+```{r}
+
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio05/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio05_2071-2100_V.2.1.tif"
+
+bio05_fut <- rast(url)
+
+
+bio05_fut_crop <- crop(bio05_fut, buffer_vect)
+
+
+writeRaster(bio05_fut_crop, "raw_data/bio05_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+
+Stack the future Bio variables into a single raster
+```{r}
+future_stack <- c(bio11_fut_crop,
+                  bio18_fut_crop,
+                  bio19_fut_crop,
+                  bio03_fut_crop,
+                  bio05_fut_crop,
+                  clay_crop,
+                  soc_crop
+                  )
+```
+
+Note that only the CHELSA V2.1 BIOCLIM variables have 2100 predicted data so clay, soc will have to be extrapolated based on the current data.
+
+## Fit 2100 Prediction Model
+
+I can use the predict() function instead of having to refit the entire SDM:
+```{r}
+names(future_stack) <- names(selected_predictors)
+
+fut_pred <- predict(future_stack, gam_sdm, fun = predict, type = "response")
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+Thresholding:
+```{r}
+fut_pred_bin <- fut_pred > pred_gam_threshold
+```
+
+Creating combined layer for suitability (now can make different colours on map for no suitablity, only for current, only for 2100 or both!)
+```{r}
+# 0 = unsuitable, 1 = current only, 2 = future only, 3 = both
+combined <- pred_gam_bin + fut_pred_bin * 2  # gives 0,1,2,3
+combined <- as.factor(combined)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+## 2100 Prediction Plot
+```{r}
+ggplot() +
+  geom_spatraster(data = combined) +
+  scale_fill_manual(
+    values = c(
+      "0" = "#FFFDD6",   # unsuitable
+      "1" = "#4DAF4A",   # current only
+      "2" = "#E07B3F",   # future only (orange)
+      "3" = "hotpink"    # both (same as current, or pick a different colour)
+    ),
+    na.value = "transparent",
+    na.translate = FALSE,
+    name = "Suitability",
+    labels = c("0" = "Unsuitable", "1" = "Current only",
+               "2" = "Future only (2100)", "3" = "Current & Future")
+  ) +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.73) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "Occurrences" = "blue")
+  ) +
+  labs(title = "E. decipiens GAM Suitability — Current vs 2100 (SSP370)",
+       x = "Longitude", y = "Latitude") +
+  theme_minimal()
+```
