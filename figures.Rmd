@@ -265,6 +265,23 @@ coordinate_tests <- clean_coordinates(x = decipiens_clean,
 summary(coordinate_tests)
 ```
 
+```{r}
+ggplot() + 
+  geom_sf(data = aus,
+          fill = "white",
+          colour = "grey60") +
+  geom_pointdensity(data = decipiens_clean,
+             aes(x = decimalLongitude,
+             y = decimalLatitude)) +
+  scale_color_viridis_c(direction = -1) + 
+  geom_sf(data = IUCN_map, 
+          fill = "#009E73", color = "#007F5F", alpha = 0.2) +
+  coord_sf(xlim = c(114, 120),
+           ylim = c(-36, -29),
+           expand = FALSE) +
+  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+```
+
 ## Raw vs cleaned data plot:
 
 ```{r}
@@ -863,6 +880,37 @@ ggplot() +
 
 I am happy with this plot to use in the presentation and discuss it further.
 
+Try for GLM too:
+```{r}
+ggplot() +
+  geom_spatraster(data = pred_glm_bin) +
+  scale_fill_manual(
+    values = c("FALSE" = "#FFFDD6", "TRUE" = "#4DAF4A"),
+    na.value = "transparent",
+    na.translate = FALSE,
+    name = "Suitability",
+    labels = c("FALSE" = "Unsuitable", "TRUE" = "Suitable")
+  ) +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.73) +
+  geom_sf(data = hull_sf, aes(colour = "95% Alpha Hull"), fill = NA,
+          linewidth = 0.7) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "95% Alpha Hull" = "cyan2",
+               "Occurrences" = "blue")
+  ) +
+  labs(title = "E. decipiens GLM Suitability, IUCN Range & Alpha Hull",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
+
+# Made with Claude assistance: https://claude.ai/share/af6e6c8c-0d2b-4f57-bf77-e20d32f3e46c
+```
+
 # Projecting Model to 2100
 
 In order to project the model to see how E. decipiens' suitable climate is predicted to change, I need to get some CHELSA V2.1 Bioclim variables for 2071-2100.
@@ -985,29 +1033,69 @@ I can use the predict() function instead of having to refit the entire SDM:
 ```{r}
 names(future_stack) <- names(selected_predictors)
 
-fut_pred <- predict(future_stack, gam_sdm, fun = predict, type = "response")
+fut_pred_glm <- predict(future_stack, glm_sdm, fun = predict, type = "response")
+fut_pred_gam <- predict(future_stack, gam_sdm, fun = predict, type = "response")
+
 
 # Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
 ```
 
 Thresholding:
 ```{r}
-fut_pred_bin <- fut_pred > pred_gam_threshold
+fut_pred_bin_glm <- fut_pred_glm > pred_glm_threshold
+fut_pred_bin_gam <- fut_pred_gam > pred_gam_threshold
 ```
 
 Creating combined layer for suitability (now can make different colours on map for no suitablity, only for current, only for 2100 or both!)
 ```{r}
 # 0 = unsuitable, 1 = current only, 2 = future only, 3 = both
-combined <- pred_gam_bin + fut_pred_bin * 2  # gives 0,1,2,3
-combined <- as.factor(combined)
+combined_glm <- pred_glm_bin + fut_pred_bin_glm * 2  # gives 0,1,2,3
+combined_glm <- as.factor(combined_glm)
+
+combined_gam <- pred_gam_bin + fut_pred_bin_gam * 2  # gives 0,1,2,3
+combined_gam <- as.factor(combined_gam)
 
 # Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
 ```
 
 ## 2100 Prediction Plot
+
+GLM:
 ```{r}
 ggplot() +
-  geom_spatraster(data = combined) +
+  geom_spatraster(data = combined_glm) +
+  scale_fill_manual(
+    values = c(
+      "0" = "#FFFDD6",   # unsuitable
+      "1" = "#4DAF4A",   # current only
+      "2" = "#E07B3F",   # future only (orange)
+      "3" = "hotpink"    # both (same as current, or pick a different colour)
+    ),
+    na.value = "transparent",
+    na.translate = FALSE,
+    name = "Suitability",
+    labels = c("0" = "Unsuitable", "1" = "Current only",
+               "2" = "Future only (2100)", "3" = "Current & Future")
+  ) +
+  geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
+          alpha = 0.2, linewidth = 0.73) +
+  geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
+             colour = "Occurrences"), size = 0.9, alpha = 1) +
+  scale_colour_manual(
+    name = NULL,
+    values = c("IUCN Range" = "darkgreen",
+               "Occurrences" = "blue")
+  ) +
+  labs(title = "E. decipiens GLM Suitability — Current vs 2100 (SSP370)",
+       x = "Longitude", y = "Latitude") +
+  theme_minimal()
+```
+
+
+GAM:
+```{r}
+ggplot() +
+  geom_spatraster(data = combined_gam) +
   scale_fill_manual(
     values = c(
       "0" = "#FFFDD6",   # unsuitable
