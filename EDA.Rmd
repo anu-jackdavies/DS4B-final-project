@@ -1019,21 +1019,37 @@ https://doi.org/10.1029/2017MS001217
 Within this in CHELSA, the SSP options are only SSP1 - 2.6, SSP3 - 7.0 and SSP5 - 8.5. I'll choose SSP3 as this is between the SSP2 and SSP4 options I thought would be good before.
 
 Getting Bioclim variables which were in my SDM model:
-Bio3 (isothermality)
+
+Bio11 (mean daily mean surface temp of coldest quarter)
 ```{r}
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio11/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio11_2071-2100_V.2.1.tif"
 
-url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio03/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio03_2071-2100_V.2.1.tif"
-
-bio3_fut <- rast(url)
-
-
-bio03_fut_crop <- crop(bio3_fut, buffer_vect)
+bio11_fut <- rast(url)
 
 
-writeRaster(bio03_fut_crop, "raw_data/bio03_australia_2071-2100.tif", overwrite = TRUE)
+bio11_fut_crop <- crop(bio11_fut, buffer_vect)
+
+
+writeRaster(bio11_fut_crop, "raw_data/bio11_australia_2071-2100.tif", overwrite = TRUE)
 
 # Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
 ```
+
+Bio18 (mean monthly precip in warmest quarter)
+```{r}
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio18/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio18_2071-2100_V.2.1.tif"
+
+bio18_fut <- rast(url)
+
+
+bio18_fut_crop <- crop(bio18_fut, buffer_vect)
+
+
+writeRaster(bio18_fut_crop, "raw_data/bio18_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
 
 Bio19 (mean monthly precip in coldest quarter)
 ```{r}
@@ -1049,15 +1065,35 @@ writeRaster(bio19_fut_crop, "raw_data/bio19_australia_2071-2100.tif", overwrite 
 # Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
 ```
 
-Bio7 (Annual daily mean near-surface temperature range)
+Bio03 (isothermality)
 ```{r}
-url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio07/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio07_2071-2100_V.2.1.tif"
 
-bio07_fut <- rast(url)
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio03/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio03_2071-2100_V.2.1.tif"
 
-bio07_fut_crop <- crop(bio07_fut, buffer_vect)
+bio3_fut <- rast(url)
 
-writeRaster(bio07_fut_crop, "raw_data/bio07_australia_2071-2100.tif", overwrite = TRUE)
+
+bio03_fut_crop <- crop(bio3_fut, buffer_vect)
+
+
+writeRaster(bio03_fut_crop, "raw_data/bio03_australia_2071-2100.tif", overwrite = TRUE)
+
+# Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
+```
+
+
+Bio05 (mean daily max air temp of warmest month)
+```{r}
+
+url <- "/vsicurl/https://os.unil.cloud.switch.ch/chelsa02/chelsa/global/bioclim/bio05/2071-2100/MPI-ESM1-2-HR/ssp370/CHELSA_mpi-esm1-2-hr_ssp370_bio05_2071-2100_V.2.1.tif"
+
+bio05_fut <- rast(url)
+
+
+bio05_fut_crop <- crop(bio05_fut, buffer_vect)
+
+
+writeRaster(bio05_fut_crop, "raw_data/bio05_australia_2071-2100.tif", overwrite = TRUE)
 
 # Made with Claude assistance https://claude.ai/share/5d4d1e1a-2419-41d5-aa1f-8f0f170b424d
 ```
@@ -1065,14 +1101,17 @@ writeRaster(bio07_fut_crop, "raw_data/bio07_australia_2071-2100.tif", overwrite 
 
 Stack the future Bio variables into a single raster
 ```{r}
-future_stack <- c(bio03_fut_crop,
+future_stack <- c(bio11_fut_crop,
+                  bio18_fut_crop,
                   bio19_fut_crop,
-                  bio07_fut_crop,
-                  soil_illite_crop,
-                  soil_smectite_crop
+                  bio03_fut_crop,
+                  bio05_fut_crop,
+                  clay_crop,
+                  soc_crop
                   )
 ```
 
+Note that only the CHELSA V2.1 BIOCLIM variables have 2100 predicted data so clay, soc will have to be extrapolated based on the current data.
 
 ## Fit 2100 Prediction Model
 
@@ -1118,14 +1157,11 @@ ggplot() +
   ) +
   geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
           alpha = 0.2, linewidth = 0.73) +
-  geom_sf(data = hull_sf, aes(colour = "Alpha Hull"), fill = NA,
-          linewidth = 0.7) +
   geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
              colour = "Occurrences"), size = 0.9, alpha = 1) +
   scale_colour_manual(
     name = NULL,
     values = c("IUCN Range" = "darkgreen",
-               "Alpha Hull" = "cyan2",
                "Occurrences" = "blue")
   ) +
   labs(title = "E. decipiens GAM Suitability — Current vs 2100 (SSP370)",
