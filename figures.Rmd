@@ -233,7 +233,7 @@ https://biocache.ala.org.au/occurrences/d63a3a75-e955-412e-83b6-302a712695aa
 https://researchdata.edu.au/salinity-action-plan-flora-survey/3877978
 
 
-Issue with Eastern points! French et. al (2012) stated that E. decipiens intergrades with another species E. obesa and then that intergrades with E. adesmophloia at the northern slopes of the Stirling range and the eastern-adjacent plain respectively. This is shown with a map that makes it likely that the older (1986 and 1999) observations are likely from one of these other related species and were mislabelled as E. decipiens prior to the knowledge by French et. al (2012).
+Issue with Eastern points! Dean and French (2012) stated that E. decipiens intergrades with another species E. obesa and then that intergrades with E. adesmophloia at the northern slopes of the Stirling range and the eastern-adjacent plain respectively. This is shown with a map that makes it likely that the older (1986 and 1999) observations are likely from one of these other related species and were mislabelled as E. decipiens prior to the knowledge by Dean and French (2012).
 https://florabase.dbca.wa.gov.au/science/nuytsia/653.pdf (see page 37)
 
 I have retroactively decided to remove these observations due to this discovery of potential species misidentification.
@@ -920,9 +920,11 @@ To get the CHELSA 2071-2100 data, I need to determine which Global Climate Model
 ### Select SSP and GCM
 
 From reading Hausfather and Peters (2020), the choice of SSP depends on what I believe is a reasonable prediction of global warming up to 2100.
+https://doi.org/10.1038/d41586-020-00177-3
 Considering the tracking of current policies compared to the pledged policies shown in that paper, I have determined that a weak mitigation of global warming (+3 degrees by 2100) is probably most likely, while +2.5 degrees may be possible if the progress and policies improve. I'll therefore use SSP4 - 6.0 (+3 degrees) and then also test SSP2 - 4.5 (+2.5) to see how that changes my model projection.
 
 Hausfather et. al (2022) warns that the CMIP6 GCMs can be highly-sensitive and a "hot-model" which projects extreme temperature increase of 5+ degrees regularly due to noise/variation influencing the mean per month/year etc. The paper discusses how the IUCN's AR6 report excluded the "too-hot" models from CMIP6 to avoid over sensitivity and get a realistic projection, instead of opting for the older CMIP5. I will opt to use CMIP6 but filter to only use GCMs for the 'likely' +2.5-4 degree range to get a realistic AR6 like projection (Hausfather et. al, 2022).
+https://doi.org/10.1038/d41586-022-01192-2
 
 ### Import CHELSA GCM/SSP data
 
