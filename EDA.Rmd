@@ -757,17 +757,17 @@ summary(gam_sdm)
 gam_sdm$aic
 ```
 
-Looking at potential variable removal, the GLM suggests most variables are significant and should be included, with doubts on smectite, illite levels (% content in 0-20cm soil depth) and particularly isothermality (day–night variability in temperature, mean monthly avg temp range (max-min) over the annual mean temp range * 100).
+Looking at potential variable removal, the GLM suggests many variables aren't significant, with particular doubts on Bio11 (Mean Daily Mean Near-Surface Air Temperature of the Quarter), Bio07 (Annual Daily Mean Near-Surface Air Temperature Range), Bio05 (Mean Daily Maximum Near-Surface Air Temperature of the Warmest Month) and soil pH.
 
-The GAM summary changes the overall picture. It makes bio18 a strong candidate for removal, and this makes sense since bio18 and bio19 are the mean monthly precipitations in the warmest and coldest quarters respectively, and likely explain the same type of change in the data, hence one can be removed (bio18 here). Meanwhile all of the other doubtful variables are more significant than in GLM, suggesting they do explain variation in presence to a significant level, just non-linearly.
+The GAM summary changes the overall picture. Variables which are still have p-values well over 0.05 are strong candidates for removal, these being Bio07, pH. Some of the other doubtful variables are far more significant than in GLM like Bio05 and Bio11, suggesting they do explain variation in presence to a significant level, just non-linearly. Clay is far closer to the 0.05 cutoff under GAM than in GLM so I won't remove it yet, while SOC is actually less significant under the GAM, indicating there could be a linear association where more SOC means greater habitat suitability without non-linear nuances.
 
 Note that GAM has lower AIC and better deviance explained than GLM, indicating better model fit. Also note I tried fitting GAM with different k-values but k = 4 worked the best (had more significant variables).
 
-So, I'll drop bio18 and check again.
+So, I'll remove Bio07, pH. I also will remove Bio18 since Bio18 and Bio19 are both precipitation measures just in different quarters, and of those two Bio19 was more significant.
 
 ```{r}
-sdm_data_uncor <- dplyr::select(sdm_data_uncor, -Bio18)
-predictor_vars <- predictor_vars[predictor_vars != "Bio18"]
+sdm_data <- dplyr::select(sdm_data, -Bio07, -pH)
+predictor_vars <- predictor_vars[!predictor_vars %in% c("Bio07", "pH")]
 
 # made with Claude help https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
 ```
@@ -787,16 +787,18 @@ print(formula_gam)
 
 ```{r}
 # Fit GLM (logistic regression)
-glm_sdm <- glm(formula_glm, data = sdm_data_uncor, family = binomial(link = "logit"))
+glm_sdm <- glm(formula_glm, data = sdm_data, family = binomial(link = "logit"))
 summary(glm_sdm)
 ```
 
 ```{r}
 # Fit GAM (using mgcv, which correctly handles smooth terms in predict)
-gam_sdm <- mgcv::gam(formula_gam, data = sdm_data_uncor, family = binomial(link = "logit"))
+gam_sdm <- mgcv::gam(formula_gam, data = sdm_data, family = binomial(link = "logit"))
 summary(gam_sdm)
 ```
-The deviance explained and adjusted R^2 have ever so slightly reduced and AIC increased after dropping Bio18 but this is not of major concern due to the benefit of a more simple model for the SDM.
+The deviance explained and adjusted R^2 have ever so slightly reduced and AIC increased after dropping Bio07 and pH but this is not of major concern due to the benefit of a more simple model for the SDM. Note I considered dropping Bio18 since 18 and 19 are both precipitation variables and Bio19 was more significant, but actually this model does better than one without Bio18 and the two of those variables have a significant impact on presence in their own right whilst passing the 0.7 correlation cutoff earlier.
+
+While Clay and SOC are not statistically significant model inclusions they aren't far from it, and I would like to include soil components into the SDM as I believe it to be an important biological aspect to consider for habitat suitability.
 
 Checking out AUC as I have in Week 8:
 
