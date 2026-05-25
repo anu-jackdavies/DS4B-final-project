@@ -800,6 +800,13 @@ The deviance explained and adjusted R^2 have ever so slightly reduced and AIC in
 
 While Clay and SOC are not statistically significant model inclusions they aren't far from it, and I would like to include soil components into the SDM as I believe it to be an important biological aspect to consider for habitat suitability.
 
+Update with removed predictors:
+```{r}
+selected_predictors <- selected_predictors[[names(selected_predictors)[!names(selected_predictors) %in% c("Bio07", "pH")]]]
+
+# Made with Claude assistance: https://claude.ai/share/f4531869-870a-4c7f-ba27-5ee61fcf997a
+```
+
 Checking out AUC as I have in Week 8:
 
 ```{r}
@@ -809,8 +816,8 @@ library(dismo)
 ```{r}
 # Split presence and background, drop rows with missing predictors so
 # predict() returns a clean, matching-length vector.
-p <- na.omit(sdm_data_uncor[sdm_data_uncor$presence == 1, ])
-a <- na.omit(sdm_data_uncor[sdm_data_uncor$presence == 0, ])
+p <- na.omit(sdm_data[sdm_data$presence == 1, ])
+a <- na.omit(sdm_data[sdm_data$presence == 0, ])
 
 # Get predicted suitability for presence and background points separately, and
 # strip dims/names with as.numeric() so dismo::evaluate() recognises them as
@@ -834,20 +841,6 @@ According to Lecture 8, AUC of 1 is perfect and around 0.8 is indicative of a re
 
 # Plot the SDM
 
-Stacking rasters for the chosen variables:
-```{r}
-selected_predictors <- c(
-  bioclim_chelsa[[c("CHELSA_bio19_1981-2010_V.2.1",
-                    "CHELSA_bio3_1981-2010_V.2.1",
-                    "CHELSA_bio7_1981-2010_V.2.1")]],
-  soil_illite_crop,
-  soil_smectite_crop
-)
-names(selected_predictors)[1:3] <- c("Bio19", "Bio03", "Bio07")
-names(selected_predictors)[4:5] <- c("Soil_Illite", "Soil_Smectite")
-```
-
-
 Now I want to make plots with the GLM, GAM, expert range and alpha hull to compare them.
 
 I can do this by adapting the leaflet plotting code I worked through in the Week 8 workshop.
@@ -868,7 +861,7 @@ pred_gam <- terra::predict(selected_predictors, gam_sdm, type = "response")
 ```
 
 
-Getting alpha hull:
+Getting 95% alpha hull:
 ```{r}
 hull <- getDynamicAlphaHull(
   x = decipiens_clean[, c("decimalLongitude", "decimalLatitude")],
@@ -876,9 +869,11 @@ hull <- getDynamicAlphaHull(
   partCount = 1
 )
 hull_sf <- st_as_sf(hull[[1]])
+
+# Made with Claude assistance: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
 ```
 
-As I'm working with geom sf and static plot not leaflet, I can't set the alpha value myself. Instead the code dyamically sets alpha such that the specific fraction of the occurrences are encompassed by the hull.
+As I'm working with geom sf and static plot not leaflet, I can't set the alpha value myself. Instead the code dynamically sets alpha such that the specific fraction of the occurrences are encompassed by the hull.
 
 GLM Plot:
 ```{r}
@@ -956,6 +951,8 @@ ggplot() +
   theme_minimal()
 # Made with Claude assistance, but primarily edited by me: https://claude.ai/share/1ce5afbe-ff4e-49c1-9662-a900a2581fe5
 ```
+Note: The reason for some white spots on the map is likely due to NA entries in the rasters for clay and SOC %. 
+
 
 ### Thresholding suitability
 
@@ -981,7 +978,7 @@ ggplot() +
   ) +
   geom_sf(data = IUCN_map, aes(colour = "IUCN Range"), fill = "lightgreen",
           alpha = 0.2, linewidth = 0.73) +
-  geom_sf(data = hull_sf, aes(colour = "Alpha Hull"), fill = NA,
+  geom_sf(data = hull_sf, aes(colour = "95% Alpha Hull"), fill = NA,
           linewidth = 0.7) +
   geom_point(data = decipiens_clean, aes(x = decimalLongitude, y = decimalLatitude,
              colour = "Occurrences"), size = 0.9, alpha = 1) +
