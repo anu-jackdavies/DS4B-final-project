@@ -254,8 +254,6 @@ Identified by Dean Nicolle again in 2024 using iNaturalist, collector/user is Ma
 https://biocache.ala.org.au/occurrences/a47f74ac-9bdc-4987-b933-b6b8a6bef9a3
 
 
-
-
 ### Final check with coordinate cleaner:
 This is a useful tool from Dax's book to identify any further points for removal.
 ```{r}
@@ -267,27 +265,40 @@ coordinate_tests <- clean_coordinates(x = decipiens_clean,
 summary(coordinate_tests)
 ```
 
-
-# Assess whether expert range map should be changed
-
-Considering the data cleaning I have performed, I do believe the IUCN expert range map should be slightly modified.
+## Raw vs cleaned data plot:
 
 ```{r}
 ggplot() + 
   geom_sf(data = aus,
           fill = "white",
           colour = "grey60") +
-  geom_pointdensity(data = decipiens_clean,
+  geom_point(data = decipiens,
              aes(x = decimalLongitude,
-             y = decimalLatitude)) +
-  scale_color_viridis_c(direction = -1) + 
+                 y = decimalLatitude,
+                 colour = "Raw data")) +
+  geom_point(data = decipiens_clean,
+             aes(x = decimalLongitude,
+                 y = decimalLatitude,
+                 colour = "Cleaned data")) +
   geom_sf(data = IUCN_map, 
           fill = "#009E73", color = "#007F5F", alpha = 0.2) +
   coord_sf(xlim = c(114, 120),
            ylim = c(-36, -29),
-           expand = FALSE) +
-  guides(colour = guide_colorbar(title = "Number of overlapping observations"))
+           expand = FALSE) + 
+  scale_colour_manual(
+    name = NULL,
+    values = c("Raw data" = "grey70",
+               "Cleaned data" = "blue")
+  ) +
+  labs(title = "E. decipiens clean vs raw occurrences plus IUCN Range",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
 ```
+
+# Assess whether expert range map should be changed
+
+Considering the data cleaning I have performed, I do believe the IUCN expert range map should be slightly modified.
 
 However, the extent to which it should be changed is dependent on interpretation, the approaches I am considering are:
 
